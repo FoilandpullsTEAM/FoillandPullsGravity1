@@ -1,0 +1,1827 @@
+Build a single-page landing site for "ProGravity" -- a fictional aerial-dance studio brand ("Defy gravity, own the dance"). The hero is a literal 1440x810 (desktop) / 440x956 (mobile) Figma frame expressed as CSS container-query units, so every position/size in SECTION-03 below is a design-pixel coordinate on that canvas. Below the hero, seven more full-width sections run in normal document flow with their own scroll-triggered reveals, a photography grid, a real filterable class list, a testimonial carousel, a lightbox, and a validated form. Use Next.js 15 (App Router) + React 19 + TypeScript + Tailwind CSS v4 (via `@tailwindcss/postcss`) + Framer Motion 12 for every animated value. No GSAP, no Lenis, no video anywhere on the page -- every moving visual is either a Framer Motion value or a CSS transition/keyframe.
+
+Ensure you follow these precise architecture and styling instructions -- do NOT replace these effects with CSS-only approximations or another library. In particular, do NOT collapse the two hero variants into one responsive component: `HeroDesktop` and `HeroMobile` are two separate, fully-mounted trees toggled with `md:block`/`md:hidden` (see EFFECT-01) -- a `matchMedia` fork would cause a hydration mismatch that this design avoids on purpose. Do NOT move `pill-mask.svg` (EFFECT-09) to the asset bucket -- it is consumed via `mask-image`, and a cross-origin SVG mask renders nothing in Chrome, silently.
+
+**Read EFFECT-01 and EFFECT-09 before you write a single line.** EFFECT-01 is the `dw()`/`mw()` pixel-to-`cqw` system that every absolute-positioned number in the hero depends on, and it includes a mandatory three-level DOM skeleton -- if the `.frame` container element is dropped or flattened, `cqw` silently resolves against the viewport and the entire hero renders oversized and overflowing. EFFECT-09 is the one asset in this build that must NOT be fetched from the URL list below.
+
+**Three hard rules for the hero (SECTION-03), where every previous attempt at this build has failed:**
+
+1. **Build it from the coordinate tables, not from the prose.** SECTION-03 lists a literal `left`/`top`/`width`/`height`/`fontSize` for every layer. Use those values verbatim. Do NOT re-derive the composition from the description, and do NOT rebuild the headline with flow layout -- "PRO" over "GRAVITY" is produced by five independently positioned fragments (`Pr`, the pill `O`, a blurred `Gravi`, a white bar, a sharp `ty`) interleaved with the dancer bitmap, not by two centred lines of text.
+2. **Every wrapper in those tables is required.** Several layers are two or three nested divs (a positioned box holding a negative-inset bleed box holding the image). The halos, the ground marks, the logo mark and the texture wash all break visibly if flattened to a single `<img>` -- `texture.jpg` in particular must be a full-bleed `opacity-20` `mix-blend-color-dodge` wash and must never appear as a standalone visible picture.
+3. **Do not invent copy.** Render only the strings quoted in this prompt. No added kickers, sub-labels, descriptor lines or marketing taglines anywhere -- the stat cards carry one number and one label each.
+
+## INDEX
+
+- SETUP: fonts · asset URLs (R2) · content layer · section backdrop · deps · global CSS
+- EFFECT-01 design-canvas-units — 1440x810 / 440x956 frame as `dw()`/`mw()` cqw helpers, dual-tree hero
+- EFFECT-02 motion-variant-vocabulary — the shared `stagger`/`riseIn`/`curtain`/`letterIn`/`passthrough` library
+- EFFECT-03 hero-desktop-scroll-pointer-parallax — five scroll-linked layers + spring cursor drift
+- EFFECT-04 split-text-letter-reveal — word-then-letter viewport reveal with an `sr-only` twin
+- EFFECT-05 cursor-follow-preview — spring-tracked floating thumbnail, reused by menu + instructors
+- EFFECT-06 media-frame — curtain reveal + scroll parallax + hover zoom/tint/shine + grain, the site's photo grammar
+- EFFECT-07 magnetic-cta — pointer-attraction wrapper around every button
+- EFFECT-08 count-up — RAF ease-out counter gated by `useInView`
+- EFFECT-09 pill-mask-inner-shadow — the "O" pill's inner shadow, masked by an embedded (not R2) SVG
+- EFFECT-10 header-scroll-glass — glass background + active-section tracking on the fixed header
+- EFFECT-11 menu-overlay-dialog — full-screen nav dialog: focus trap, escape, scroll lock, roll-up labels
+- EFFECT-12 classes-filter-flip — level filter with FLIP reflow via `layout`/`popLayout`
+- EFFECT-13 community-carousel — draggable, keyboard-navigable testimonial slider
+- EFFECT-14 gallery-lightbox — masonry grid opening a focus-trapped, keyboard-stepped viewer
+- EFFECT-15 membership-switch — layout-animated monthly/yearly toggle
+- EFFECT-16 join-form-validation — regex-validated email capture with a state machine
+- EFFECT-17 scroll-progress-bar — spring-smoothed top-of-page reading progress
+- EFFECT-18 marquee-ticker — CSS-keyframe infinite ticker, duplicated content, hover-pause
+- EFFECT-19 css-micro-hovers — every pure-CSS hover/focus transition, grouped
+- EFFECT-20 reduced-motion-contract — how every effect above degrades
+- SECTION-01 site-header (uses EFFECT-02, 10, 19)
+- SECTION-02 menu-overlay (uses EFFECT-02, 05, 11, 19)
+- SECTION-03 hero (uses EFFECT-01, 02, 03, 07, 08, 09)
+- SECTION-04 scroll-progress (uses EFFECT-17)
+- SECTION-05 ticker (uses EFFECT-18)
+- SECTION-06 manifesto (uses EFFECT-02, 04, 06, 08, 19)
+- SECTION-07 classes (uses EFFECT-02, 04, 06, 07, 12, 19)
+- SECTION-08 instructors (uses EFFECT-02, 04, 05, 19)
+- SECTION-09 gallery (uses EFFECT-02, 04, 06, 14, 19)
+- SECTION-10 community (uses EFFECT-02, 04, 13, 19)
+- SECTION-11 membership (uses EFFECT-02, 04, 07, 15, 19)
+- SECTION-12 join (uses EFFECT-02, 04, 07, 16, 19)
+- SECTION-13 site-footer (uses EFFECT-02, 19)
+- DETAILS — key design details
+- EDICION — self-check, EDITAR.md, AGENTS.md, what is NOT easy here
+
+## SETUP
+
+### [SETUP-FONTS]
+
+Two families, both loaded via `next/font/google` in `app/layout.tsx`:
+
+- `Anybody({ subsets: ["latin"], variable: "--font-anybody", axes: ["wdth"], display: "swap" })` -- wired to `--font-display`. Anybody is a variable-width font used as a stand-in for the commercial "Normalidad Ultra Extended": every headline, the wordmark and the pill number use it via two utility classes (see SETUP-CSS): `.font-normalidad` (`font-weight: 400; font-stretch: 150%; font-variation-settings: "wdth" 150`) and `.font-normalidad-black` (same axis, `font-weight: 700`).
+- `Figtree({ subsets: ["latin"], variable: "--font-figtree", display: "swap" })` -- wired to `--font-sans`, the body/UI face for every paragraph, label and button that isn't a display headline.
+
+`<html lang="en" className={\`${anybody.variable} ${figtree.variable}\`}>`.
+
+### [SETUP-ASSETS] (Cloudflare R2 -- use exactly these)
+
+No `public/` folder is fetched from at runtime. Put the base in one exported constant and build every path from it:
+
+```ts
+// lib/assets.ts
+const R2_BASE =
+  "https://pub-36eefd528bbb4e28bdef0ce39a1018e0.r2.dev/Prompt/43-progravity/public";
+const BASE = (process.env.NEXT_PUBLIC_ASSET_BASE ?? R2_BASE).replace(/\/+$/, "");
+export const asset = (path: string) => `${BASE}${path}`;
+```
+
+Every path below is relative to that base (e.g. `asset("/figma/bg-sky.jpg")`):
+
+1. `/figma/bg-sky.jpg` -- hero sky backdrop, stretched to fill.
+2. `/figma/texture.jpg` -- hero grain/texture overlay, `mix-blend-mode: color-dodge`.
+3. `/figma/dancer.webp` -- the suspended dancer cutout, reused three times: hero body, hero foreground clip, and the Join section's background silhouette.
+4. `/figma/dancer-top.webp` -- close crop of the dancer, used in the menu "Home" preview and the Manifesto section's top image.
+5. `/figma/atmo-01.jpg` through `/figma/atmo-06.jpg` -- six studio/class atmosphere photos, used across Classes, the menu preview, Gallery and Manifesto's second image.
+6. `/figma/avatar-01.jpg` through `/figma/avatar-14.jpg` -- fourteen member/instructor portraits, used across the hero stat cards, the mobile hero row, Instructors, Gallery and Community testimonials.
+7. `/figma/badge.webp` -- the small rotating emblem on the "Classes Monthly" stat card.
+8. `/figma/logomark.webp` -- the brand mark bitmap inside the `Logo` component.
+9. `/svg/flower.svg` -- the rotating flower/asterisk mark, used on the "Classes Monthly" card and spinning beside the Manifesto images.
+10. `/svg/swirl-left.svg`, `/svg/swirl-right.svg`, `/svg/swirl-center.svg`, `/svg/swirl-mobile.svg` -- the four blurred halo shapes behind the hero type.
+11. `/svg/ground-1.svg`, `/svg/ground-2.svg` -- the two ground-shadow marks under the hero dancer.
+
+**Not uploaded, not fetched from R2:** `/svg/pill-mask.svg`. It is consumed via `mask-image`/`-webkit-mask-image` on two blurred shadow bars inside the "O" pill (EFFECT-09), and Chrome silently drops a cross-origin SVG mask -- the shadow layer would just vanish. It is embedded as a `data:` URI constant instead; see EFFECT-09 for the literal value.
+
+### [SETUP-CONTENT]
+
+**Read this block before you write a single component.** Every visible string, every asset URL and
+every section background in this build is read from one file, `src/lib/content.ts`. A literal
+string or a literal URL inside a component is a bug, and so is a second copy of a string shared by
+the desktop and mobile hero trees. The buyer of this site edits it with an AI assistant and no
+technical knowledge: if the content is scattered, "change the hero background to an image" leaves
+an orphaned layer painting underneath. Keys are English, comments are Spanish — that is deliberate
+and must be preserved.
+
+Create `src/lib/content.ts` starting with exactly this. `MEDIA` comes first so a bitmap used three
+times is one constant, not three URLs:
+
+```ts
+/* ══════════════════════════════════════════════════════════════════
+   ESTE ES EL ÚNICO ARCHIVO QUE NECESITÁS TOCAR.
+
+   Acá viven los textos, las imágenes, los videos y los fondos de todo
+   el sitio. Los colores y las tipografías están aparte, en
+   `src/app/globals.css`, arriba de todo.
+
+   Si cambiás algo acá, cambia en todas las pantallas a la vez
+   (computadora y celular). No hace falta buscarlo en ningún otro lado.
+   ══════════════════════════════════════════════════════════════════ */
+import { HF, asset } from "@/lib/assets";
+import type { Layer } from "@/components/ui/SectionBackdrop";
+
+/* ─────────────── 1. IMÁGENES Y VIDEOS ───────────────
+   Cambiá una dirección acá y cambia en todos los lugares donde se use
+   esa imagen. Pegá la dirección completa entre las comillas. */
+export const MEDIA = {
+  /** Fondo del hero: el cielo. */
+  heroSky: asset("/figma/bg-sky.jpg"),
+  /** Textura de grano que va encima del cielo, apenas visible. */
+  heroTexture: asset("/figma/texture.jpg"),
+  /** La bailarina. Se usa TRES veces: el cuerpo en el hero, el recorte
+      que le pasa por delante al título, y la silueta de la sección
+      final. Si la cambiás, cambian las tres — es a propósito. */
+  dancer: asset("/figma/dancer.webp"),
+  /** Retrato recortado: el menú y el Manifesto. */
+  dancerTop: asset("/figma/dancer-top.webp"),
+
+  /** El logo. */
+  logomark: asset("/figma/logomark.webp"),
+  /** La chapita que acompaña a las tarjetas de dato del hero. */
+  badge: asset("/figma/badge.webp"),
+
+  /* Formas dibujadas del diseño: los resplandores de fondo del hero y las
+     marcas del suelo. Si las cambiás por otro dibujo, respetá la proporción
+     o van a quedar corridas. */
+  haloLeft: asset("/svg/swirl-left.svg"),
+  haloRight: asset("/svg/swirl-right.svg"),
+  haloCenter: asset("/svg/swirl-center.svg"),
+  haloMobile: asset("/svg/swirl-mobile.svg"),
+  ground1: asset("/svg/ground-1.svg"),
+  ground2: asset("/svg/ground-2.svg"),
+  flower: asset("/svg/flower.svg"),
+
+  /** Tomas de ambiente del cuerpo del sitio. */
+  atmo: [asset("/figma/atmo-01.jpg"), asset("/figma/atmo-03.jpg"), asset("/figma/atmo-05.jpg")],
+
+  /** Los catorce retratos del grupo "10K+ Active Members", en orden.
+      Cambiá esta lista para poner las caras de tu propia gente. */
+  avatars: [
+    asset("/figma/avatar-01.jpg"),
+    asset("/figma/avatar-02.jpg"),
+    asset("/figma/avatar-03.jpg"),
+    asset("/figma/avatar-04.jpg"),
+    asset("/figma/avatar-05.jpg"),
+    asset("/figma/avatar-06.jpg"),
+    asset("/figma/avatar-07.jpg"),
+    asset("/figma/avatar-08.jpg"),
+    asset("/figma/avatar-09.jpg"),
+    asset("/figma/avatar-10.jpg"),
+    asset("/figma/avatar-11.jpg"),
+    asset("/figma/avatar-12.jpg"),
+    asset("/figma/avatar-13.jpg"),
+    asset("/figma/avatar-14.jpg"),
+  ],
+} as const;
+
+/* ─────────────── 2. FONDOS DE CADA SECCIÓN ───────────────
+   Las capas se pintan de arriba hacia abajo: la PRIMERA de la lista es
+   la que queda más atrás.
+
+   Para sacar una capa, borrá su línea.
+   Para poner una foto de fondo, dejá una sola capa así:
+       hero: [{ type: "image", src: "https://tu-foto.jpg" }],
+   Para un video:
+       hero: [{ type: "video", src: "...", poster: "...", mode: "loop" }],
+   Para un color plano:
+       hero: [{ type: "color", value: "#101820" }],
+
+   Tipos disponibles: "image" · "video" · "color" · "gradient" ·
+   "veil" (un velo encima) · "grain" (grano de película) · "vignette". */
+export const BACKGROUNDS: Record<string, Layer[]> = {
+  /** Hero en computadora. El cielo va estirado a propósito: el diseño
+      convierte el degradado en franjas horizontales. */
+  hero: [
+    { type: "image", src: MEDIA.heroSky, fit: "fill", height: "105%", parallax: 70 },
+    {
+      type: "image",
+      src: MEDIA.heroTexture,
+      bleed: "8%",
+      opacity: 0.2,
+      blend: "color-dodge",
+      parallax: 70,
+    },
+  ],
+
+  /** Hero en celular. Misma receta, encuadre distinto. */
+  heroMobile: [
+    { type: "image", src: MEDIA.heroSky, fit: "cover", position: "bottom" },
+    { type: "image", src: MEDIA.heroTexture, bleed: "10%", opacity: 0.2, blend: "color-dodge" },
+  ],
+
+  /** Fondo de todo lo que viene después del hero. Arranca en el tono en
+      el que muere la foto del cielo y se hunde hacia el azul profundo.
+      Las paradas van en píxeles y no en porcentaje: la página mide
+      varios miles de píxeles, y un 9 % dejaría media pantalla en el azul
+      pálido con el texto blanco sin contraste. */
+  body: [
+    {
+      type: "gradient",
+      value:
+        "linear-gradient(180deg, var(--color-sky-fade) 0px, var(--color-cyan-mid) 180px, var(--color-deep-mid) 520px, var(--color-ink) 1500px, var(--color-abyss) 100%)",
+    },
+  ],
+};
+```
+
+After `BACKGROUNDS`, the same file holds every string this prompt quotes, under a
+`/* ─────────────── 3. TEXTOS ─────────────── */` banner, in these exports — each one named in the
+`Content:` line of the section that uses it: `NAV`, `HERO`, `MARQUEE`, `MANIFESTO`, `CLASSES`,
+`LEVELS`, `INSTRUCTORS`, `GALLERY`, `TESTIMONIALS`, `PLANS`, `FOOTER_LINKS`, `SOCIALS`.
+
+`HERO` is the one to get right, because the headline is split (see SECTION-03):
+
+```ts
+export const HERO = {
+  /** El nombre de la marca. */
+  brand: "ProGravity",
+  /** Título que leen los lectores de pantalla (no se ve en la página). */
+  srTitle: "ProGravity — Defy gravity, own the dance.",
+  /**
+   * ⚠ ZONA DIFÍCIL — el título grande está partido en pedazos que se
+   * colocan a mano, para que la "O" sea el anillo y la bailarina pase
+   * por delante. Cambiar estos pedazos por otra palabra NO alcanza: hay
+   * que recolocarlos. Mirá "Lo que NO es fácil" en EDITAR.md.
+   */
+  brandParts: { pr: "Pr", gravi: "Gravi", ty: "ty" },
+  /** El lema, en dos líneas de dos pedazos cada una. */
+  tagline: [
+    ["Defy", "Gravity."],
+    ["Own the", "Dance."],
+  ],
+  /** Los botones del hero. */
+  buttons: [
+    { label: "Join the Movement", href: "#membership", style: "solid" },
+    { label: "Our Classes", href: "#classes", style: "ghost" },
+  ],
+  body: "ProGravity is a next-level dance experience that blends strength, rhythm, and aerial-inspired movement into one seamless flow.",
+  stats: [
+    { value: 150, suffix: "+", label: "Classes Monthly" },
+    { value: 10, suffix: "K+", label: "Active Members" },
+  ],
+} as const;
+```
+
+Four hard rules that hold for the whole build:
+
+1. **No component may contain a visible string.** Every quoted string in `## SECTIONS` below is the
+   literal value of a key in `content.ts`; the component reads the key. Render exactly the strings
+   quoted here and no others.
+2. **No component may contain an asset URL or path.** Everything goes through `MEDIA`. The one
+   exception is the `pill-mask.svg` data URI (EFFECT-09), which stays in `lib/assets.ts` with the
+   comment explaining why — do NOT "tidy" it into `MEDIA`, it is consumed via `mask-image` and a
+   cross-origin SVG mask renders nothing in Chrome.
+3. **`HeroDesktop` and `HeroMobile` share zero duplicated content.** They stay two separate trees
+   (see EFFECT-01) but both read `HERO` and `MEDIA`. A string that appears in both files is a bug.
+4. **No hex colour outside the `@theme` block** of `globals.css` (SETUP-CSS). The only permitted
+   exceptions are the Next metadata `themeColor`, which cannot take a `var()`, and hex inside a
+   documentation comment.
+
+### [SETUP-BACKDROP]
+
+Create `src/components/ui/SectionBackdrop.tsx` **verbatim** from the block below — do not
+paraphrase it, do not simplify the layer union, and do not inline its layers back into the
+sections. This component is what makes the finished site editable: every background in the build
+goes through it, so swapping a background is one line in `BACKGROUNDS` and nothing survives
+underneath.
+
+The failure it exists to prevent: with the layers written inline, changing a hero from video to
+image leaves the old `<video>`, its veils and its `requestAnimationFrame` loop alive in the tree.
+
+```tsx
+"use client";
+
+import { useEffect, useRef, type MutableRefObject } from "react";
+import {
+  motion,
+  useReducedMotion,
+  useScroll,
+  useTransform,
+  type MotionValue,
+} from "framer-motion";
+
+/**
+ * El fondo de una sección, entero, en un solo lugar.
+ *
+ * Todo lo que pinta detrás del contenido —bitmaps, video, degradados, velos,
+ * grano, viñeta— entra acá como una lista de capas. Fuera de este componente
+ * no puede existir un `<video>` de fondo, un `<img>` a sangre, un velo de
+ * gradiente ni la clase `.grain`: esa es la regla que evita que al cambiar un
+ * fondo queden capas huérfanas pintando por debajo.
+ *
+ * El orden del array es el orden de pintado: la primera capa es la de más
+ * atrás. Para sacar una capa se borra su línea en `BACKGROUNDS`.
+ *
+ * Solo se monta la rama del `type` activo. Cambiar `{ type: "video" }` por
+ * `{ type: "image" }` no esconde el video: lo desmonta, y con él se va su
+ * lógica de reproducción. No hay handlers sobrevivientes.
+ */
+
+type Common = {
+  /** Opacidad de la capa, 0–1. */
+  opacity?: number;
+  /** `mix-blend-mode` CSS: "color-dodge", "overlay", "screen"… */
+  blend?: string;
+  /**
+   * Recorrido vertical con el scroll, en píxeles, de 0 (sección arriba del
+   * todo) al final de su salida. Positivo = la capa baja al scrollear.
+   */
+  parallax?: number;
+};
+
+export type Layer =
+  | ({ type: "color"; value: string } & Common)
+  | ({ type: "gradient"; value: string } & Common)
+  | ({
+      type: "image";
+      src: string;
+      /** `object-fit`. "fill" estira el bitmap; el diseño a veces lo pide. */
+      fit?: "cover" | "contain" | "fill";
+      /** `object-position`: "center", "bottom", "50% 20%"… */
+      position?: string;
+      /** Alto/ancho de la capa. Por defecto cubre el marco exacto. */
+      height?: string;
+      width?: string;
+      /**
+       * Sobremedida por cada borde, en %. `bleed: "8%"` deja la capa 8% más
+       * afuera por lado (y 116% de tamaño), que es lo que da recorrido al
+       * paralaje y evita bordes blancos al mover la capa.
+       */
+      bleed?: string;
+    } & Common)
+  | ({
+      type: "video";
+      src: string;
+      poster: string;
+      /**
+       * "loop": reproduce en bucle · "once": una sola pasada ·
+       * "scrub": el scroll de la sección maneja el `currentTime`.
+       */
+      mode: "loop" | "once" | "scrub";
+      /** Escala del bitmap; 1.04 evita bordes al mover la capa. */
+      scale?: number;
+    } & Common)
+  | ({
+      type: "veil";
+      /** Un color o un degradado CSS completo. */
+      value: string;
+      /** Aplica el velo solo desde este breakpoint hacia arriba. */
+      from?: "sm" | "md" | "lg";
+      /** Aplica el velo solo por debajo de este breakpoint. */
+      until?: "sm" | "md" | "lg";
+    } & Common)
+  | { type: "grain"; opacity?: number }
+  | { type: "vignette"; intensity?: number };
+
+export type BackdropProgress = {
+  time: number;
+  duration: number;
+  progress: number;
+};
+
+/**
+ * Mando del video, para la sección que necesita moverlo (un rail de capítulos,
+ * un botón de "saltar a…"). Queda en `null` mientras no haya capa de video: el
+ * consumidor tiene que seguir funcionando con eso.
+ */
+export type BackdropControl = {
+  seek: (time: number) => void;
+  duration: number;
+} | null;
+
+type Props = {
+  layers: Layer[];
+  className?: string;
+  /**
+   * Puente de salida: lo usa una sección que sincroniza algo de su UI con el
+   * video de fondo. Si no hay capa de video, no se llama nunca — el consumidor
+   * tiene que funcionar igual con su valor por defecto.
+   */
+  onProgress?: (p: BackdropProgress) => void;
+  /**
+   * Puente de entrada. Es la contraparte de `onProgress`: deja mover el video
+   * desde afuera sin sacar su lógica de acá.
+   */
+  control?: MutableRefObject<BackdropControl>;
+};
+
+/* Mismo encuadre de scroll que usaban los heroes antes de centralizarse:
+   de "la sección toca el borde superior" a "la sección terminó de salir". */
+const SCROLL_OFFSET = ["start start", "end start"] as const;
+
+export function SectionBackdrop({ layers, className = "", onProgress, control }: Props) {
+  const host = useRef<HTMLDivElement>(null);
+  const reduce = useReducedMotion() ?? false;
+
+  const { scrollYProgress } = useScroll({
+    target: host,
+    offset: SCROLL_OFFSET as unknown as ["start start", "end start"],
+  });
+
+  return (
+    <div
+      ref={host}
+      aria-hidden
+      className={`pointer-events-none absolute inset-0 overflow-hidden ${className}`}
+    >
+      {layers.map((layer, i) => (
+        <LayerNode
+          key={`${layer.type}-${i}`}
+          layer={layer}
+          progress={scrollYProgress}
+          reduce={reduce}
+          onProgress={onProgress}
+          control={control}
+        />
+      ))}
+    </div>
+  );
+}
+
+type NodeProps = {
+  layer: Layer;
+  progress: MotionValue<number>;
+  reduce: boolean;
+  onProgress?: (p: BackdropProgress) => void;
+  control?: MutableRefObject<BackdropControl>;
+};
+
+function LayerNode({ layer, progress, reduce, onProgress, control }: NodeProps) {
+  switch (layer.type) {
+    case "color":
+      return <FlatLayer layer={layer} progress={progress} reduce={reduce} background={layer.value} />;
+    case "gradient":
+      return <FlatLayer layer={layer} progress={progress} reduce={reduce} background={layer.value} />;
+    case "image":
+      return <ImageLayer layer={layer} progress={progress} reduce={reduce} />;
+    case "video":
+      return (
+        <VideoLayer
+          layer={layer}
+          progress={progress}
+          reduce={reduce}
+          onProgress={onProgress}
+          control={control}
+        />
+      );
+    case "veil":
+      return <VeilLayer layer={layer} progress={progress} reduce={reduce} />;
+    case "grain":
+      return <GrainLayer opacity={layer.opacity} />;
+    case "vignette":
+      return <VignetteLayer intensity={layer.intensity} />;
+  }
+}
+
+/** Recorrido de paralaje de una capa, o `undefined` si no tiene. */
+function useParallax(progress: MotionValue<number>, distance: number | undefined, reduce: boolean) {
+  const y = useTransform(progress, [0, 1], [0, distance ?? 0]);
+  return reduce || !distance ? undefined : y;
+}
+
+function FlatLayer({
+  layer,
+  progress,
+  reduce,
+  background,
+}: {
+  layer: Extract<Layer, { type: "color" | "gradient" }>;
+  progress: MotionValue<number>;
+  reduce: boolean;
+  background: string;
+}) {
+  const y = useParallax(progress, layer.parallax, reduce);
+  return (
+    <motion.div
+      className="absolute inset-0"
+      style={{
+        background,
+        opacity: layer.opacity,
+        mixBlendMode: layer.blend as never,
+        ...(y ? { y } : null),
+      }}
+    />
+  );
+}
+
+function ImageLayer({
+  layer,
+  progress,
+  reduce,
+}: {
+  layer: Extract<Layer, { type: "image" }>;
+  progress: MotionValue<number>;
+  reduce: boolean;
+}) {
+  const y = useParallax(progress, layer.parallax, reduce);
+
+  /* `bleed: "8%"` = 8% afuera por lado, o sea 116% de tamaño. Se deriva acá
+     para que la capa tenga una sola perilla y no tres que puedan discordar. */
+  const bleed = layer.bleed ? parseFloat(layer.bleed) : 0;
+  const spread = bleed ? `${100 + bleed * 2}%` : undefined;
+
+  return (
+    <motion.img
+      src={layer.src}
+      alt=""
+      className="absolute"
+      style={{
+        inset: bleed ? `-${bleed}%` : 0,
+        height: layer.height ?? spread ?? "100%",
+        width: layer.width ?? spread ?? "100%",
+        objectFit: layer.fit ?? "cover",
+        objectPosition: layer.position,
+        opacity: layer.opacity,
+        mixBlendMode: layer.blend as never,
+        ...(y ? { y } : null),
+      }}
+    />
+  );
+}
+
+function VideoLayer({
+  layer,
+  progress,
+  reduce,
+  onProgress,
+  control,
+}: {
+  layer: Extract<Layer, { type: "video" }>;
+  progress: MotionValue<number>;
+  reduce: boolean;
+  onProgress?: (p: BackdropProgress) => void;
+  control?: MutableRefObject<BackdropControl>;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const y = useParallax(progress, layer.parallax, reduce);
+
+  /* Toda la lógica del video vive acá adentro. Si esta capa deja de estar en
+     `BACKGROUNDS`, el componente no se monta y esto no existe: no quedan
+     listeners colgados ni un rAF girando sobre un elemento que ya no está. */
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (reduce) {
+      video.pause();
+      video.currentTime = 0;
+      return;
+    }
+
+    let frame = 0;
+
+    const report = () => {
+      if (!onProgress || !video.duration) return;
+      onProgress({
+        time: video.currentTime,
+        duration: video.duration,
+        progress: video.currentTime / video.duration,
+      });
+    };
+
+    const tick = () => {
+      report();
+      frame = requestAnimationFrame(tick);
+    };
+
+    const onMeta = () => {
+      /* El mando solo existe mientras exista la capa de video. Si esta capa
+         se saca de BACKGROUNDS, el consumidor ve `null` y sigue andando. */
+      if (control) {
+        control.current = {
+          seek: (t: number) => {
+            if (video.duration) video.currentTime = Math.max(0, Math.min(t, video.duration));
+          },
+          duration: video.duration,
+        };
+      }
+
+      if (layer.mode === "scrub") {
+        video.pause();
+        seek();
+      } else {
+        void video.play().catch(() => {});
+        frame = requestAnimationFrame(tick);
+      }
+    };
+
+    /* Scrub: el progreso de scroll maneja el tiempo. La guarda `seeking` evita
+       inundar el decoder con saltos que no llega a resolver. */
+    const seek = () => {
+      if (!video.duration || video.seeking) return;
+      video.currentTime = progress.get() * video.duration;
+      report();
+    };
+
+    video.addEventListener("loadedmetadata", onMeta);
+    if (video.readyState >= 1) onMeta();
+
+    const stopScrub = layer.mode === "scrub" ? progress.on("change", seek) : undefined;
+
+    return () => {
+      video.removeEventListener("loadedmetadata", onMeta);
+      stopScrub?.();
+      if (frame) cancelAnimationFrame(frame);
+      if (control) control.current = null;
+    };
+  }, [layer.mode, progress, reduce, onProgress, control]);
+
+  return (
+    <motion.video
+      ref={videoRef}
+      src={layer.src}
+      poster={layer.poster}
+      muted
+      playsInline
+      preload="auto"
+      autoPlay={layer.mode !== "scrub"}
+      loop={layer.mode === "loop"}
+      className="absolute inset-0 size-full object-cover"
+      style={{
+        scale: layer.scale,
+        opacity: layer.opacity,
+        mixBlendMode: layer.blend as never,
+        ...(y ? { y } : null),
+      }}
+    />
+  );
+}
+
+const FROM: Record<string, string> = {
+  sm: "hidden sm:block",
+  md: "hidden md:block",
+  lg: "hidden lg:block",
+};
+
+const UNTIL: Record<string, string> = {
+  sm: "sm:hidden",
+  md: "md:hidden",
+  lg: "lg:hidden",
+};
+
+function VeilLayer({
+  layer,
+  progress,
+  reduce,
+}: {
+  layer: Extract<Layer, { type: "veil" }>;
+  progress: MotionValue<number>;
+  reduce: boolean;
+}) {
+  const y = useParallax(progress, layer.parallax, reduce);
+  return (
+    <motion.div
+      className={`absolute inset-0 ${layer.from ? FROM[layer.from] : ""} ${
+        layer.until ? UNTIL[layer.until] : ""
+      }`}
+      style={{
+        background: layer.value,
+        opacity: layer.opacity,
+        mixBlendMode: layer.blend as never,
+        ...(y ? { y } : null),
+      }}
+    />
+  );
+}
+
+/** Grano de película. Usa la utilidad `.grain` de `globals.css`. */
+function GrainLayer({ opacity }: { opacity?: number }) {
+  return <div className="grain absolute inset-0" style={{ opacity }} />;
+}
+
+function VignetteLayer({ intensity = 0.45 }: { intensity?: number }) {
+  return (
+    <div
+      className="absolute inset-0"
+      style={{
+        background: `radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,${intensity}) 100%)`,
+      }}
+    />
+  );
+}
+```
+
+Wire it with three rules, no exceptions:
+
+- **Exactly one `<SectionBackdrop>` per section that has a background**, and it is the only place a
+  `<video>`, a full-bleed `<img>`, a veil `<div>`, `.grain` or a vignette may appear. In this build
+  that is `HeroDesktop` (`BACKGROUNDS.hero`), `HeroMobile` (`BACKGROUNDS.heroMobile`) and the body
+  wrapper in `app/page.tsx` (`BACKGROUNDS.body`), each with `className="-z-10"`.
+- **The hero's artboard decoration is NOT a backdrop layer.** The three halos and the two ground
+  marks are positioned artboard layers with negative-inset bleed boxes and `dpx()`/`dpy()`
+  coordinates — they stay in SECTION-03's DOM skeleton with their nested wrappers, and only their
+  URLs move to `MEDIA`. Coordinates are design, not content.
+- **Nothing outside the component reads or writes the `<video>`.** If a section needs to follow the
+  video, it passes `onProgress`; if it needs to move it, it passes a `control` ref. This build uses
+  neither — it has no video — but keep both props, they are part of the contract.
+
+Also create `src/sections.ts`, the section registry `app/page.tsx` maps over, so the buyer can
+remove or reorder a section without touching code:
+
+```ts
+export type SectionEntry = {
+  id: string;
+  active: boolean;
+  Component: ComponentType;
+  /** Clave de `BACKGROUNDS` en content.ts, o null si no tiene fondo propio. */
+  background: string | null;
+  group?: "body";
+};
+
+export const SECTIONS: SectionEntry[] = [
+  { id: "hero", active: true, Component: Hero, background: null },
+  { id: "ticker", active: true, Component: Ticker, background: null, group: "body" },
+  /* …manifesto, classes, instructors, gallery, community, membership, join, footer… */
+];
+
+/** Las secciones encendidas de un grupo, en orden. */
+export const sectionsIn = (group?: "body") =>
+  SECTIONS.filter((s) => s.active && s.group === group);
+```
+
+Removing a section is `active: false`, **not** deleting the line: it is reversible, leaves no dead
+imports and cannot break the build. Reordering is moving a line. `app/page.tsx` renders
+`sectionsIn(undefined)` first, then the `BACKGROUNDS.body` backdrop wrapper holding
+`sectionsIn("body")`.
+
+### [SETUP-DEPS]
+
+```json
+"dependencies": {
+  "framer-motion": "^12.23.12",
+  "next": "^15.5.0",
+  "react": "^19.1.0",
+  "react-dom": "^19.1.0"
+},
+"devDependencies": {
+  "@tailwindcss/postcss": "^4.1.11",
+  "@types/node": "^22.15.0",
+  "@types/react": "^19.1.0",
+  "@types/react-dom": "^19.1.0",
+  "tailwindcss": "^4.1.11",
+  "typescript": "^5.8.3"
+}
+```
+
+No icon library -- every icon (`InstagramIcon`, `YoutubeIcon`, `XIcon`, `ArrowElbowIcon`, `MenuIcon`, `CloseIcon`, `ArrowUpRightIcon`, `ArrowLeftIcon`, `ArrowRightIcon`, `PlusIcon`, `CheckIcon`) is a hand-authored inline `<svg viewBox="0 0 20 20">` in `components/ui/Icons.tsx`, `stroke="currentColor"`, `strokeLinecap`/`strokeLinejoin: "round"`. Every component that reads state or a motion value is `"use client"`.
+
+### [SETUP-CSS]
+
+`app/globals.css`, in full:
+
+```css
+@import "tailwindcss";
+
+@theme {
+  --color-sky: #99badf;
+  --color-deep: #025b86;
+  --color-slate: #465b76;
+  --color-cyan: #026692;
+  --color-haze: #ddf6ff;
+  --color-ink: #06283d;
+
+  --font-display: var(--font-anybody), "Anybody", "Helvetica Neue", Arial, sans-serif;
+  --font-sans: var(--font-figtree), "Figtree", "Helvetica Neue", Arial, sans-serif;
+
+  --ease-brand: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.frame {
+  container-type: size;
+  container-name: frame;
+}
+
+.frame-desktop {
+  width: min(100%, calc(100svh * 16 / 9));
+  aspect-ratio: 16 / 9;
+  margin-inline: auto;
+}
+
+.frame-mobile {
+  width: min(100%, calc(100svh * 440 / 956));
+  aspect-ratio: 440 / 956;
+  margin-inline: auto;
+}
+
+.font-normalidad {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-stretch: 150%;
+  font-variation-settings: "wdth" 150;
+}
+
+.font-normalidad-black {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 150%;
+  font-variation-settings: "wdth" 150;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 88px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-sky);
+  color: #fff;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+::selection {
+  background: #fff;
+  color: var(--color-deep);
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.19);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.hairline {
+  border: 1px solid rgba(255, 255, 255, 0.29);
+}
+
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  pointer-events: none;
+  opacity: 0.16;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: grain 1.2s steps(4) infinite;
+}
+
+@keyframes grain {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-3%, 2%); }
+  50% { transform: translate(2%, -3%); }
+  75% { transform: translate(-2%, -2%); }
+}
+
+@keyframes marquee {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee var(--marquee-duration, 40s) linear infinite;
+}
+
+.marquee-track[data-direction="right"] {
+  animation-direction: reverse;
+}
+
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+.menu-row {
+  container-type: inline-size;
+}
+
+.link-underline {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 0% 1px;
+  transition: background-size 0.5s var(--ease-brand);
+}
+
+.link-underline:hover,
+.link-underline:focus-visible {
+  background-size: 100% 1px;
+}
+
+:where(a, button, input, summary, [tabindex]):focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+
+  .marquee-track,
+  .grain::after {
+    animation: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+```
+
+## EFFECTS
+
+Ensure you follow these precise architecture and styling instructions -- do NOT replace these effects with CSS-only approximations or another library.
+
+### [EFFECT-01] design-canvas-units
+Used in: SECTION-03
+
+Copy `lib/frame.ts` verbatim -- it is the coordinate system every absolute value in the hero depends on:
+
+```ts
+export const DESKTOP_W = 1440;
+export const DESKTOP_H = 810;
+export const MOBILE_W = 440;
+export const MOBILE_H = 956;
+
+export const dw = (px: number) => `${(px / DESKTOP_W) * 100}cqw`;
+export const mw = (px: number) => `${(px / MOBILE_W) * 100}cqw`;
+
+export const dpx = (percent: number, offset = 0) =>
+  dw((percent / 100) * DESKTOP_W + offset);
+export const dpy = (percent: number, offset = 0) =>
+  dw((percent / 100) * DESKTOP_H + offset);
+
+export const mpx = (percent: number, offset = 0) =>
+  mw((percent / 100) * MOBILE_W + offset);
+export const mpy = (percent: number, offset = 0) =>
+  mw((percent / 100) * MOBILE_H + offset);
+```
+
+The stage element carries Tailwind's `@container` equivalent via the plain CSS class `.frame` (`container-type: size; container-name: frame`, SETUP-CSS) plus `.frame-desktop` (`width: min(100%, calc(100svh * 16 / 9)); aspect-ratio: 16 / 9`) or `.frame-mobile` (`width: min(100%, calc(100svh * 440 / 956)); aspect-ratio: 440 / 956`). Because the frame's aspect ratio is CSS-locked, `1cqw` already represents true 2-D scaling -- unlike a stage with a free-floating aspect ratio, there is no need for a second vertical-percentage helper: `dw()`/`mw()` alone size **and** position everything, `top`/`left`/`width`/`height`/`font-size`/`letter-spacing`, all through the same unit. `dpx`/`dpy`/`mpx`/`mpy` exist only to convert a Figma "percent + pixel offset" coordinate (`calc(66.67% + -5px)`) into a single `dw()`/`mw()` call.
+
+**The three-level stage skeleton is mandatory and load-bearing.** Emit it exactly like this -- `cqw` units resolve against the nearest ancestor with `container-type`, and if the `.frame` element is missing, flattened into its parent, or replaced by a plain `<div>`, every `cqw` in the hero silently falls back to resolving against the *viewport* instead. The failure mode is not an error: the hero renders with the headline several times too large, overflowing the right edge, with the dancer and the pill "O" wildly out of register. If the hero looks "zoomed in", this skeleton is what is wrong.
+
+```tsx
+// HeroDesktop.tsx
+<div ref={sectionRef} onPointerMove={…}
+     className="relative isolate hidden min-h-svh w-full overflow-hidden bg-sky md:block">
+  {/* backdrop lives HERE, outside the frame, so it bleeds past the letterboxed stage */}
+  <motion.div aria-hidden className="absolute inset-0 -z-10" style={{ y: skyY }}>…</motion.div>
+
+  <div className="relative flex min-h-svh items-center">
+    <motion.div className="frame frame-desktop relative"
+                variants={stagger(reduce, 0.075, 0.15)} initial="hidden" animate="show">
+      {/* every absolutely-positioned hero layer goes here */}
+    </motion.div>
+  </div>
+</div>
+```
+
+`HeroMobile.tsx` is the same shape with `md:hidden` on the root, `frame frame-mobile` on the stage, and `stagger(reduce, 0.07, 0.15)`. The middle `flex items-center` wrapper is what vertically centres the letterboxed frame in the viewport; the `.frame` element itself must be the direct parent of the positioned layers.
+
+**Both hero variants are always mounted.** `components/hero/Hero.tsx` renders `<HeroDesktop />` and `<HeroMobile />` unconditionally inside one `<section id="home">`; `HeroDesktop`'s root carries `hidden ... md:block` and `HeroMobile`'s root carries `... md:hidden`. This is a pure CSS display toggle, not a `matchMedia`/`useEffect` fork -- both trees hydrate identically on server and client, so there is no flash-of-wrong-layout and no hydration-mismatch risk to guard against.
+
+### [EFFECT-02] motion-variant-vocabulary
+Used in: SECTION-01, SECTION-02, SECTION-03, SECTION-06 through SECTION-13
+
+Copy `lib/motion.ts` verbatim -- every `variants` prop in the build (except EFFECT-04's own letter variant, which reuses `letterIn`) comes from this file:
+
+```ts
+import type { Variants } from "framer-motion";
+
+export const EASE = [0.22, 1, 0.36, 1] as const;
+
+export const stagger = (reduce: boolean, each = 0.08, delay = 0.1): Variants => ({
+  hidden: {},
+  show: {
+    transition: reduce
+      ? { staggerChildren: 0, delayChildren: 0 }
+      : { staggerChildren: each, delayChildren: delay },
+  },
+});
+
+export const riseIn = (reduce: boolean, y = 24, duration = 0.9): Variants => ({
+  hidden: reduce ? { opacity: 0 } : { opacity: 0, y },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: reduce ? 0.2 : duration, ease: EASE },
+  },
+});
+
+export const slideIn = (reduce: boolean, x = 32, duration = 0.9): Variants => ({
+  hidden: reduce ? { opacity: 0 } : { opacity: 0, x },
+  show: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: reduce ? 0.2 : duration, ease: EASE },
+  },
+});
+
+export const zoomIn = (reduce: boolean, from = 1.08, duration = 1.4): Variants => ({
+  hidden: reduce ? { opacity: 0 } : { opacity: 0, scale: from },
+  show: {
+    opacity: 1,
+    scale: 1,
+    transition: { duration: reduce ? 0.2 : duration, ease: EASE },
+  },
+});
+
+export const curtain = (reduce: boolean, duration = 1.2): Variants => ({
+  hidden: reduce ? { opacity: 0 } : { clipPath: "inset(100% 0% 0% 0%)" },
+  show: {
+    opacity: 1,
+    clipPath: "inset(0% 0% 0% 0%)",
+    transition: { duration: reduce ? 0.2 : duration, ease: EASE },
+  },
+});
+
+export const curtainMedia = (reduce: boolean, duration = 1.4): Variants => ({
+  hidden: reduce ? {} : { scale: 1.35 },
+  show: {
+    scale: 1,
+    transition: { duration: reduce ? 0.2 : duration, ease: EASE },
+  },
+});
+
+export const letterIn = (reduce: boolean): Variants => ({
+  hidden: reduce ? { opacity: 0 } : { opacity: 0, y: "0.5em", rotate: 6 },
+  show: {
+    opacity: 1,
+    y: 0,
+    rotate: 0,
+    transition: { duration: reduce ? 0.2 : 0.7, ease: EASE },
+  },
+});
+
+export const overlayFade: Variants = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { duration: 0.35, ease: EASE } },
+  exit: { opacity: 0, transition: { duration: 0.25, ease: EASE } },
+};
+
+export const passthrough: Variants = { hidden: {}, show: {} };
+```
+
+`passthrough` is not a no-op -- it is required on every wrapper `motion.div` that carries a scroll/pointer `MotionValue` in `style` (the parallax layers in EFFECT-03) while living inside a `stagger()`-driven ancestor. Without its own (empty) `hidden`/`show` keys, Framer Motion resolves the ancestor's active variant onto that node and overwrites the `y`/`x` `MotionValue` sitting in its `style` prop, breaking the parallax and producing a hydration mismatch. Every `MotionValue`-driven wrapper in the hero uses `variants={passthrough}` for exactly this reason.
+
+### [EFFECT-03] hero-desktop-scroll-pointer-parallax
+Used in: SECTION-03
+
+Desktop hero only. Two independent, simultaneously-active mechanisms:
+
+**Scroll depth** -- `const { scrollYProgress } = useScroll({ target: sectionRef, offset: ["start start", "end start"] })` on the hero section's own ref. Five `useTransform` reads off the same progress value, each driving a different layer's `y` (or opacity):
+- sky/texture wrapper: `useTransform(scrollYProgress, [0, 1], [0, 70])`.
+- halo wrapper: `[0, 1] → [0, -30]`.
+- headline wrapper: `[0, 1] → [0, -150]`.
+- dancer wrapper (and its frontal clip duplicate): `[0, 1] → [0, -70]`.
+- stat-cards wrapper: `[0, 1] → [0, -20]`.
+- headline opacity fade: `useTransform(scrollYProgress, [0, 0.8], [1, 0])`.
+
+**Pointer drift** -- two raw `useMotionValue(0)` (`mx`, `my`), each wrapped `useSpring(value, { stiffness: 60, damping: 20, mass: 0.6 })`. `onPointerMove` on the hero root reads its own `getBoundingClientRect()` and normalises to `-0.5..0.5`: `mx.set((e.clientX - rect.left) / rect.width - 0.5)`, same formula for `my` against `rect.height`. The motion values are always created (hooks cannot be conditional), but only bound to the handler when `pointerOn = fine && !reduce` (`fine` from `usePointerFine()`, EFFECT-20's media-query hook) -- on touch the origin stays at rest. Three independent pixel ranges, each `useTransform(spring, v => v * depth)`:
+- dancer: `x: v => v * -14`, `y: v => v * -8` (opposite-sign X reads as the dancer leaning away from the cursor).
+- headline: `x: v => v * 9`.
+- halo: `x: v => v * 22`.
+
+Both mechanisms compose on the same layer (e.g. the dancer wrapper's `style` carries both the scroll-driven `y` and the spring-driven `x`), gated behind `variants={passthrough}` (EFFECT-02) so the stagger ancestor never clobbers them, and behind `style={reduce ? undefined : {...}}` so `prefers-reduced-motion` removes the inline transform entirely rather than animating to a zero value.
+
+### [EFFECT-04] split-text-letter-reveal
+Used in: SECTION-06 through SECTION-12 (every `SectionHead` title, plus the two Join headlines)
+
+Copy `components/ui/SplitText.tsx` verbatim:
+
+```tsx
+"use client";
+
+import { motion, useReducedMotion } from "framer-motion";
+import { letterIn, stagger } from "@/lib/motion";
+
+type SplitTextProps = {
+  text: string;
+  className?: string;
+  by?: "letter" | "word";
+  each?: number;
+  as?: "h2" | "h3" | "p" | "span";
+};
+
+export function SplitText({
+  text,
+  className,
+  by = "letter",
+  each = 0.03,
+  as = "h2",
+}: SplitTextProps) {
+  const reduce = useReducedMotion() ?? false;
+  const Tag = motion[as] as typeof motion.h2;
+  const words = text.split(" ");
+
+  return (
+    <Tag
+      className={className}
+      variants={stagger(reduce, each, 0)}
+      initial="hidden"
+      whileInView="show"
+      viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
+    >
+      <span className="sr-only">{text}</span>
+      <span aria-hidden>
+        {words.map((word, w) => (
+          <span key={`${word}-${w}`} className="inline-block whitespace-nowrap">
+            {by === "letter" ? (
+              Array.from(word).map((letter, i) => (
+                <span key={`${letter}-${i}`} className="inline-block overflow-hidden align-bottom">
+                  <motion.span className="inline-block" variants={letterIn(reduce)}>
+                    {letter}
+                  </motion.span>
+                </span>
+              ))
+            ) : (
+              <span className="inline-block overflow-hidden align-bottom">
+                <motion.span className="inline-block" variants={letterIn(reduce)}>
+                  {word}
+                </motion.span>
+              </span>
+            )}
+            {w < words.length - 1 ? <span>&nbsp;</span> : null}
+          </span>
+        ))}
+      </span>
+    </Tag>
+  );
+}
+```
+
+Every visible letter/word sits inside its own `overflow-hidden` span so `letterIn`'s `y: "0.5em"` slide-up is clipped into a wipe rather than a raw translate; the full string is duplicated once as `sr-only` so screen readers and search engines read one clean sentence instead of a letter soup. `SectionHead` (used by Manifesto, Classes, Instructors, Gallery, Community, Membership) always calls it with `by="letter"` and `each={0.024}`; `Join`'s two headlines call it directly with the same default.
+
+### [EFFECT-05] cursor-follow-preview
+Used in: SECTION-02, SECTION-08
+
+Fine-pointer-only (`fine && !reduce`). Two raw `useMotionValue(0)` (`x`, `y`) wrapped in `useSpring`, updated from an `onPointerMove` on the whole hoverable region: `x.set(e.clientX); y.set(e.clientY)` (viewport coordinates, not relative to any container). The floating thumbnail is `position: fixed; left: 0; top: 0` with `style={{ x: springX, y: springY }}` and a negative margin that centers it on the cursor, so it reads as attached to the pointer rather than trailing from a corner. Inside it, `AnimatePresence mode="wait"` swaps a `motion.img` keyed by the id of whichever row is currently hovered/focused (`onPointerEnter`/`onPointerLeave`/`onFocus`/`onBlur` all set the same `hovered` state).
+
+- **Menu overlay** (SECTION-02): spring `{ stiffness: 150, damping: 22, mass: 0.5 }`. Box `fixed left-0 top-0 z-10 -ml-[150px] -mt-[190px] h-[380px] w-[300px] overflow-hidden rounded-[18px]`. Image `initial={{ opacity: 0, scale: 1.12 }}`, `animate={{ opacity: 1, scale: 1, transition: { duration: 0.5, ease: EASE } }}`, `exit={{ opacity: 0, transition: { duration: 0.25 } }}`. Source map keyed by nav id: `{ home: dancer-top.webp, about: atmo-01.jpg, classes: atmo-03.jpg, instructors: avatar-01.jpg, community: atmo-05.jpg }`.
+- **Instructors** (SECTION-08): spring `{ stiffness: 160, damping: 24, mass: 0.5 }`. Box `fixed left-0 top-0 z-40 -ml-[110px] -mt-[140px] h-[280px] w-[220px] overflow-hidden rounded-[16px]`. Image `initial={{ opacity: 0, scale: 1.15, rotate: -3 }}`, `animate={{ opacity: 1, scale: 1, rotate: 0, transition: { duration: 0.45, ease: EASE } }}`, `exit={{ opacity: 0, transition: { duration: 0.22 } }}`. Source is each instructor's own portrait.
+
+### [EFFECT-06] media-frame
+Used in: SECTION-06, SECTION-07, SECTION-09
+
+Copy `components/ui/MediaFrame.tsx` verbatim -- this reusable figure is the visual grammar behind every photograph on the site except the hero:
+
+```tsx
+"use client";
+
+import { useRef } from "react";
+import { motion, useReducedMotion, useScroll, useSpring, useTransform } from "framer-motion";
+import { curtain, curtainMedia } from "@/lib/motion";
+
+type MediaFrameProps = {
+  src: string;
+  alt: string;
+  className?: string;
+  ratio?: string;
+  parallax?: number;
+  tint?: string;
+  caption?: string;
+  priority?: boolean;
+  children?: React.ReactNode;
+};
+
+export function MediaFrame({
+  src,
+  alt,
+  className = "",
+  ratio = "4 / 5",
+  parallax = 12,
+  tint = "linear-gradient(160deg, rgba(2,91,134,0.55), rgba(255,120,60,0.35))",
+  caption,
+  priority = false,
+  children,
+}: MediaFrameProps) {
+  const reduce = useReducedMotion() ?? false;
+  const ref = useRef<HTMLDivElement>(null);
+
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
+  const raw = useTransform(scrollYProgress, [0, 1], [`-${parallax}%`, `${parallax}%`]);
+  const y = useSpring(raw, { stiffness: 110, damping: 30, mass: 0.4 });
+
+  return (
+    <motion.figure
+      ref={ref}
+      className={`group relative isolate overflow-hidden grain ${className}`}
+      style={{ aspectRatio: ratio }}
+      variants={curtain(reduce)}
+      initial="hidden"
+      whileInView="show"
+      viewport={{ once: true, margin: "-10% 0px -10% 0px" }}
+    >
+      <motion.div
+        className="absolute inset-x-0 -inset-y-[14%]"
+        style={reduce ? undefined : { y }}
+        variants={curtainMedia(reduce)}
+      >
+        <img
+          src={src}
+          alt={alt}
+          loading={priority ? "eager" : "lazy"}
+          decoding="async"
+          className="h-full w-full object-cover transition-[transform,filter] duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform group-hover:scale-[1.07] group-focus-within:scale-[1.07] saturate-[1.05] group-hover:saturate-[1.25]"
+        />
+      </motion.div>
+
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-70 mix-blend-color transition-opacity duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:opacity-0 group-focus-within:opacity-0"
+        style={{ backgroundImage: tint }}
+      />
+
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-[1100ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-full"
+      />
+
+      {caption ? (
+        <>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/55 to-transparent"
+          />
+          <figcaption className="absolute inset-x-0 bottom-0 translate-y-3 p-4 text-[11px] uppercase tracking-[0.18em] text-white/0 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-y-0 group-hover:text-white group-focus-within:translate-y-0 group-focus-within:text-white">
+            {caption}
+          </figcaption>
+        </>
+      ) : null}
+
+      {children}
+    </motion.figure>
+  );
+}
+```
+
+Four layers stack inside every frame: (1) a `clip-path: inset(100% 0 0 0) → inset(0)` curtain reveal on the whole `<figure>` while the image itself counter-scales from `1.35 → 1` inside it, so the photo appears to be pulled up into view rather than just faded in; (2) a scroll-linked, spring-smoothed parallax on the image only (`inset-y-[14%]` overscan so there's travel room); (3) a duotone `tint` wash that dissolves on hover/focus; (4) a diagonal light-sweep that slides across on hover. The `grain` class (SETUP-CSS) adds the fractal-noise `::after` on top of all of it. `className="grain"` combined with `overflow-hidden isolate` is what keeps the noise texture clipped to the frame's own rounded corners.
+
+### [EFFECT-07] magnetic-cta
+Used in: SECTION-03, SECTION-07, SECTION-11, SECTION-12
+
+Copy `components/ui/Magnetic.tsx` verbatim:
+
+```tsx
+"use client";
+
+import { useRef } from "react";
+import { motion, useMotionValue, useReducedMotion, useSpring } from "framer-motion";
+import { usePointerFine } from "@/lib/hooks";
+
+type MagneticProps = { children: React.ReactNode; className?: string; strength?: number };
+
+export function Magnetic({ children, className, strength = 0.25 }: MagneticProps) {
+  const reduce = useReducedMotion() ?? false;
+  const fine = usePointerFine();
+  const ref = useRef<HTMLDivElement>(null);
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const sx = useSpring(x, { stiffness: 220, damping: 18, mass: 0.3 });
+  const sy = useSpring(y, { stiffness: 220, damping: 18, mass: 0.3 });
+  const active = fine && !reduce;
+
+  return (
+    <motion.div
+      ref={ref}
+      className={className}
+      style={active ? { x: sx, y: sy } : undefined}
+      onPointerMove={(e) => {
+        if (!active || !ref.current) return;
+        const r = ref.current.getBoundingClientRect();
+        x.set((e.clientX - (r.left + r.width / 2)) * strength);
+        y.set((e.clientY - (r.top + r.height / 2)) * strength);
+      }}
+      onPointerLeave={() => {
+        x.set(0);
+        y.set(0);
+      }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+```
+
+`components/ui/CTA.tsx` -- the shared pill/ghost/dark button used everywhere -- wraps its `<a>`/`<button>` in `<Magnetic className="inline-block" strength={0.18}>`. The button itself is a `group relative overflow-hidden rounded-full` with an `aria-hidden` fill span (`absolute inset-0 origin-bottom scale-y-0 group-hover:scale-y-100`, `bg-deep` on the solid/ghost variants or `bg-white` on the reverse, `duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]`) that rises from the bottom edge on hover -- the fill color is always the opposite of the resting background, so the text color-swap (`text-deep hover:text-white` etc.) always stays legible against it. The `ghost` variant additionally shows a `size-[38px]` circular arrow chip (`ArrowElbowIcon`) that rotates from `-rotate-90` to `rotate-0` on hover.
+
+### [EFFECT-08] count-up
+Used in: SECTION-03 (both stat cards, both hero variants), SECTION-06 (three manifesto figures)
+
+`lib/hooks.ts`, `useCountUp`:
+
+```ts
+export function useCountUp(to: number, run: boolean, reduce: boolean, duration = 1600) {
+  const [value, setValue] = useState(0);
+
+  useEffect(() => {
+    if (!run) return;
+    if (reduce) {
+      setValue(to);
+      return;
+    }
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setValue(Math.round(to * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [run, to, reduce, duration]);
+
+  return value;
+}
+```
+
+Cubic ease-out (`1 - (1-t)^3`) driven by a raw `requestAnimationFrame` loop, not a Framer `animate()` call. `run` is always sourced from a `useInView(ref, { once: true, margin: "..." })` -- do **not** add a "has it already run" ref guard inside the hook itself: in React Strict Mode the effect mounts, cleans up and remounts once, and a same-hook guard would let the second mount bail out before the counter starts, freezing it at zero. The `once: true` on the caller's `useInView` is what already guarantees a single run. Call sites: `useCountUp(150, inView, reduce, 1500)` (classes stat, desktop `1500`/mobile `1400`ms), `useCountUp(10, inView, reduce, 1500)` (members stat), `useCountUp(value, inView, reduce, 1400)` per Manifesto figure (`12`, `3`, `40`).
+
+### [EFFECT-09] pill-mask-inner-shadow
+Used in: SECTION-03
+
+The "O" of "PR" is drawn as a `548.604 x 115.93`, `border-radius: 55`, `21`-unit white ring (a plain `border` box, not an SVG). Two blurred, colour-filled rectangles sit **behind** it to fake an inner shadow along the ring's own stroke, each clipped to just the ring's outline by a shared mask SVG:
+
+```ts
+// lib/assets.ts, alongside `asset()`
+export const PILL_MASK =
+  "data:image/svg+xml,%3Csvg preserveAspectRatio='none' overflow='visible' width='548.604' height='115.93' viewBox='0 0 548.604 115.93' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='10.5' y='10.5' width='527.604' height='94.9297' rx='44.5' stroke='white' stroke-width='21'/%3E%3C/svg%3E";
+```
+
+`PILL_MASK` is a hand-encoded `data:` URI, **not** a bucket asset -- it must never be swapped for `asset("/svg/pill-mask.svg")`. Chrome drops `mask-image` outright when the referenced SVG is cross-origin (no console error, the layer just stops painting), so this one asset has to be embedded rather than hosted. Apply it to both shadow rectangles as:
+
+```ts
+style={{
+  background: "var(--color-sky)", // second rectangle: "var(--color-slate)"
+  filter: `blur(calc(${dw(24.5)} * 0.5))`,
+  WebkitMaskImage: `url("${PILL_MASK}")`,
+  maskImage: `url("${PILL_MASK}")`,
+  maskRepeat: "no-repeat",
+  WebkitMaskRepeat: "no-repeat",
+  maskSize: `${dw(548.604)} ${dw(115.93)}`,
+  WebkitMaskSize: `${dw(548.604)} ${dw(115.93)}`,
+  maskPosition: `${dw(-182.604)} ${dw(16.125)}`, // second rectangle: -227.679 / 16.125
+  WebkitMaskPosition: `${dw(-182.604)} ${dw(16.125)}`,
+}}
+```
+
+The `url("${PILL_MASK}")` quotes are load-bearing, not cosmetic: `encodeURIComponent`-style data URIs can carry an unescaped `(`/`)` in their query-like segment, and an unquoted `url()` closes on the first `)` it meets, silently discarding the whole mask declaration (the symptom is the shadow rectangle rendering as a flat, unmasked color block, not as "no effect"). The two rectangles use the same mask geometry but a different `maskPosition`, sliding the visible window along the ring so each one reveals a different arc segment of the same stroke -- one reads as the shadow inside the top-left of the pill, the other as the shadow inside the bottom-right.
+
+### [EFFECT-10] header-scroll-glass
+Used in: SECTION-01
+
+`useScrolled(offset = 24)`: a `scroll` listener (passive) setting `scrolled = window.scrollY > offset`; the header calls it with `40`. When `true`, the fixed header's className swaps from `border-b border-transparent` to `border-b border-white/15 bg-[rgba(2,91,134,0.28)] backdrop-blur-xl`, transitioning over `duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]` on `background-color, backdrop-filter, border-color`. The header itself enters once on mount: `motion.header initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.1, ease: EASE }}`.
+
+`useActiveSection(ids)`: one `IntersectionObserver` watching all five nav targets (`home`, `about`, `classes`, `instructors`, `community`) at once, `rootMargin: "-45% 0px -45% 0px"`, `threshold: [0, 0.25, 0.5, 1]`. On every callback it picks the intersecting entry with the highest `intersectionRatio` and sets it active; the matching `<a>` gets `aria-current="page"` plus `font-bold text-white opacity-100` instead of `text-white opacity-70 hover:opacity-100`.
+
+### [EFFECT-11] menu-overlay-dialog
+Used in: SECTION-02
+
+Three composable hooks from `lib/hooks.ts`, all reused as-is elsewhere (EFFECT-14 reuses the same three for the lightbox):
+
+- `useLockBodyScroll(locked)`: on `locked`, reads `window.innerWidth - document.documentElement.clientWidth` (the scrollbar's own width), sets `body.style.overflow = "hidden"` and, if that gap is `> 0`, `body.style.paddingRight = \`${gap}px\`` so the layout doesn't shift sideways when the scrollbar disappears; both are restored on cleanup.
+- `useEscape(active, onEscape)`: a `keydown` listener calling `onEscape` on `"Escape"`, added/removed with `active`.
+- `useFocusTrap<T>(active)`: on activation, records `document.activeElement` to restore later, focuses the panel's first focusable element (`a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])`), and a `keydown` handler on the panel cycles `Tab`/`Shift+Tab` between the first and last focusable rather than letting focus leave the dialog; on cleanup it restores focus to whatever was focused before the dialog opened.
+
+`AnimatePresence` wraps the whole overlay. Backdrop: `bg-[#02324a]/92 backdrop-blur-2xl`, plain opacity fade (`0.4s` in / `0.3s` out, `EASE`). Panel: `variants={{ hidden: {}, show: { transition: { staggerChildren: reduce ? 0 : 0.06, delayChildren: 0.12 } }, exit: { transition: { staggerChildren: 0 } } }}`. Each of the five nav rows is a `motion.li` (`hidden: { opacity: 0, y: 30 }`, `show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: EASE } }`) prefixed with its zero-padded index (`01`…`05`) and containing a **double-line label swap**: the resting label (`className="block transition-transform duration-[600ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-y-full"`) sits over an identical, `aria-hidden`, initially-offscreen twin (`absolute inset-0 translate-y-full text-white/60 group-hover:translate-y-0`) -- hovering rolls the first label up and out while the second rolls up and in from below, on the same `600ms` curve. Each row also drives the cursor-preview thumbnail (EFFECT-05) via the same `onPointerEnter`/`onPointerLeave`/`onFocus`/`onBlur` quartet. The dialog itself is wired with `useLockBodyScroll(open)` + `useEscape(open, onClose)` + the focus trap on its panel.
+
+### [EFFECT-12] classes-filter-flip
+Used in: SECTION-07
+
+`LEVELS = ["All", "Beginner", "Intermediate", "Advanced"]` as a pill row (`aria-pressed`, active pill `border-white bg-white text-deep`). `level` state feeds `useMemo(() => level === "All" ? CLASSES : CLASSES.filter(c => c.level === level), [level])`. The grid wrapper is `motion.div layout={!reduce}`; `AnimatePresence mode="popLayout"` wraps the mapped cards so a card leaving the filtered set animates out (`layout` lets the survivors reflow smoothly) while new matches animate in: `initial={{ opacity: 0, y: 26, scale: 0.98 }}`, `animate={{ opacity: 1, y: 0, scale: 1 }}`, `exit={{ opacity: 0, y: -14, scale: 0.98 }}`, `transition={{ duration: 0.6, ease: EASE }}`, each card itself also `layout={!reduce}`. An `aria-live="polite"` `sr-only` paragraph announces `"{count} clases visibles en el nivel {level}."` on every change.
+
+### [EFFECT-13] community-carousel
+Used in: SECTION-10
+
+State is a single `[index, dir]` tuple (`dir` is `+1`/`-1`, the direction of the last navigation, used to pick which side the next card enters/exits from). `step(delta)` sets `[(i + delta + total) % total, delta]`. The card is `drag="x"` (disabled under `reduce`), `dragConstraints={{ left: 0, right: 0 }}` (it always springs back, it never actually relocates by drag), `dragElastic={0.12}`; `onDragEnd` checks `info.offset.x`, stepping `+1` past `-60px` or `-1` past `+60px`. `AnimatePresence mode="wait" custom={dir}` wraps a `motion.figure` keyed by the testimonial's `name`: `initial={{ opacity: 0, x: dir * shift }}`, `animate={{ opacity: 1, x: 0 }}`, `exit={{ opacity: 0, x: dir * -shift }}`, `shift = reduce ? 0 : 60`, `transition={{ duration: 0.55, ease: EASE }}`. The region also has `tabIndex={0}` with a `keydown` handler stepping on `ArrowLeft`/`ArrowRight`, plus a row of dot buttons (`aria-current`, active dot `w-8 bg-white` vs `w-1.5 bg-white/35`) and two arrow buttons, and an `aria-live="polite"` announcement of `"Testimonio {index+1} de {total}: {name}."`.
+
+### [EFFECT-14] gallery-lightbox
+Used in: SECTION-09
+
+`SHAPE` map drives both the masonry layout and each `MediaFrame`'s parallax depth per item span: `{ tall: { ratio: "3 / 5", drift: 16 }, wide: { ratio: "16 / 10", drift: 8 }, normal: { ratio: "1 / 1", drift: 12 } }`. The grid itself is CSS masonry, not a JS layout: `columns-1 gap-4 sm:columns-2 lg:columns-3 [&>*]:mb-4`, each item `break-inside-avoid`. Clicking a tile sets `open` to its index, mounting a `Lightbox` that reuses `useFocusTrap` + `useLockBodyScroll(true)` + `useEscape(true, onClose)` from EFFECT-11, plus its own `keydown` listener for `ArrowLeft`/`ArrowRight` stepping (modulo-wrapped). `AnimatePresence mode="wait"` crossfades the full image keyed by `item.src`: `initial={{ opacity: 0, scale: 0.96 }}`, `animate={{ opacity: 1, scale: 1 }}`, `exit={{ opacity: 0, scale: 1.02 }}`, `duration: 0.4, ease: EASE` (`0.15` under reduced motion). Footer row shows the caption, a zero-padded `"01 / 08"` counter, and prev/next buttons; the whole dialog is `bg-[#02202f]/94 backdrop-blur-xl`.
+
+### [EFFECT-15] membership-switch
+Used in: SECTION-11
+
+`yearly` boolean state. The switch is a real `role="switch" aria-checked={yearly}` button (`h-9 w-[76px] rounded-full border p-1`) containing one `motion.span layout={!reduce}` thumb (`size-7 rounded-full bg-white`, `className` toggles a trailing `ml-auto` when `yearly`) -- letting Framer's `layout` prop animate the position change via FLIP rather than an explicit `x` transform, `transition={{ duration: 0.4, ease: EASE }}`. Each plan's price is a `motion.span` keyed by `yearly ? "y" : "m"`: `initial={{ opacity: 0, y: 10 }}`, `animate={{ opacity: 1, y: 0 }}`, `transition={{ duration: 0.4, ease: EASE }}`, swapping between `monthly`/`yearly` numeric values on every toggle. The three plan cards themselves (`Drop-in`, `Flow` -- `featured`, `Air`) reveal via a shared `Reveal`/`Rise` stagger wrapper (EFFECT-02's `stagger`/`riseIn`, `each={0.1}`).
+
+### [EFFECT-16] join-form-validation
+Used in: SECTION-12
+
+`EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/`. `status` is a `"idle" | "error" | "sending" | "done"` state machine. On submit (`e.preventDefault()`): if `!EMAIL.test(email.trim())`, set `status = "error"` and `.focus()` the input; otherwise set `"sending"` and `window.setTimeout(() => setStatus("done"), 700)` (no real network call -- there is no backend to talk to yet). The error paragraph is permanently in the DOM (`opacity-0` when not showing, so layout never jumps) and wired to the input via `aria-describedby` + `aria-invalid`, becoming `role="alert"` only while `status === "error"`. `AnimatePresence mode="wait"` swaps the whole form for a `glass` confirmation panel (`CheckIcon` in a white circle + the submitted email echoed back) once `status === "done"`.
+
+### [EFFECT-17] scroll-progress-bar
+Used in: SECTION-04
+
+`const { scrollYProgress } = useScroll()` (no `target`, so it tracks the whole document). `useSpring(scrollYProgress, { stiffness: 140, damping: 30, restDelta: 0.001 })` drives `scaleX` on a `fixed inset-x-0 top-0 z-[70] h-[2px] origin-left bg-white/85` bar. Under `reduce`, `scaleX` reads the raw `scrollYProgress` directly instead of the spring, so the indicator still moves but with zero added lag.
+
+### [EFFECT-18] marquee-ticker
+Used in: SECTION-05
+
+`components/ui/Marquee.tsx`: `items` duplicated once (`[...items, ...items]`) and rendered as one `flex w-max` track; the CSS keyframe (SETUP-CSS) translates `translate3d(0,0,0) → translate3d(-50%,0,0)`, so the seam between the two copies is invisible -- the track has scrolled exactly one full copy's width when it loops. `animation: marquee var(--marquee-duration, 40s) linear infinite`, duration passed per-instance as an inline CSS custom property. `data-direction="right"` sets `animation-direction: reverse`. `.marquee:hover .marquee-track { animation-play-state: paused }` is pure CSS, no JS. Two instances run in opposite directions at different speeds: the five-item headline row (`Defy Gravity · Own the Dance · Aerial Flow · Strength × Rhythm · No Ceiling`, `duration={38}`, `separator="✦"`) and the same list reversed, smaller, `duration={52}`, `direction="right"`, `separator="—"`.
+
+### [EFFECT-19] css-micro-hovers
+Used in: SECTION-01, SECTION-02, SECTION-03, SECTION-06 through SECTION-13
+
+Pure CSS/Tailwind, no Framer:
+- Every text link (`link-underline`, SETUP-CSS): underline draws left-to-right on hover/focus, `background-size 0% → 100% 1px`, `0.5s var(--ease-brand)`.
+- Social icon circles (`size-[38px] rounded-full border border-white/29`): `hover:-translate-y-0.5 hover:bg-white hover:text-deep`, `duration-500`.
+- Header burger (mobile nav trigger): two `h-px` bars, first shrinks `group-hover:w-1/2`, second grows `group-hover:w-full`, `duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]`.
+- Class card top-right arrow chip: `opacity-0 group-hover:opacity-100 group-hover:-translate-y-0.5`, `duration-500`.
+- Footer back-to-top button: `fixed bottom-6 right-6`, appears/disappears via `translate-y-4/opacity-0 → translate-y-0/opacity-100` gated by `useScrolled(600)`, `duration-500`.
+- The rotating flower mark (Manifesto, and the badge on the "Classes Monthly" card): a plain Framer `animate={{ rotate: 360 }}` / `animate={{ rotate: [-30, -22, -30] }}` infinite loop (`duration: 40`/`6`, `ease: "linear"`/`"easeInOut"`), not a CSS keyframe -- included here as a micro-detail rather than its own EFFECT block since it is a single `animate` prop with no state.
+- Instructors row: `group-hover:translate-x-2 md:group-hover:translate-x-4` on the name, `duration-500`.
+
+### [EFFECT-20] reduced-motion-contract
+Used in: global
+
+Every component calls its **own** `useReducedMotion() ?? false` independently (there is no shared context provider threading a single read down) -- match this exactly rather than centralizing it, since several components (`Magnetic`, `MediaFrame`, `SplitText`) are meant to be dropped in standalone. Every `variants`/`animate` object above branches explicitly on that boolean rather than just shortening its duration (e.g. `curtain`'s `hidden` state is a `clipPath` inset under motion but a plain `{ opacity: 0 }` under reduce -- the clip-path mechanism is removed, not sped up). `usePointerFine()` (`useMediaQuery("(hover: hover) and (pointer: fine)")`, SSR-safe, starts `false`, syncs via `matchMedia` + a `change` listener) additionally gates every pointer-following effect (EFFECT-03's cursor drift, EFFECT-05, EFFECT-07) off entirely on touch, independent of the reduced-motion flag. The global CSS net (SETUP-CSS) forces `animation-duration`/`transition-duration` to `0.01ms` and `animation-iteration-count: 1` under `@media (prefers-reduced-motion: reduce)`, and explicitly kills the two `animation: none` cases the blanket duration-zero rule can't reach cleanly (`.marquee-track`, `.grain::after`).
+
+## SECTIONS
+
+### [SECTION-01] site-header
+Uses: EFFECT-02, EFFECT-10, EFFECT-19
+Backdrop: none
+Content: CONTENT.NAV
+
+`fixed inset-x-0 top-0 z-50`, `h-[72px] lg:h-[76px]`, `max-w-[1440px]` inner row. Left: `Logo` (see below). Center (`hidden lg:block`): the five nav links, `gap-[60px] text-[12px] capitalize`. Right: five-item social row (`hidden lg:flex`, Instagram/YouTube/X, `gap-[17px]`) then the mobile menu trigger (`lg:hidden`, "Menu" label + two-bar icon, EFFECT-19). `Logo` (`components/ui/Logo.tsx`) -- the source bitmap is a black square with a white mark on it, and the design shows only a cropped window into it. Both the `overflow-hidden` box and the `mix-blend-screen` are required: without the box you get a large black square in the header, without the blend you get a black tile behind the mark.
+
+```tsx
+<span className="flex items-center gap-3">
+  <span aria-hidden className="relative block shrink-0 overflow-hidden"
+        style={{ width: 35.542, height: 30.745 }}>
+    <img src={MEDIA.logomark} alt=""
+         className="absolute max-w-none mix-blend-screen"
+         style={{ left: "-61.24%", top: "-78.75%", width: "222.48%", height: "257.51%" }} />
+  </span>
+  {compact ? null : (
+    <span className="font-normalidad text-[12px] uppercase leading-[1.4] tracking-[0.08em] text-white">
+      Progravity
+    </span>
+  )}
+  <span className="sr-only">ProGravity</span>
+</span>
+```
+
+### [SECTION-02] menu-overlay
+Uses: EFFECT-02, EFFECT-05, EFFECT-11, EFFECT-19
+Backdrop: none
+Content: CONTENT.NAV
+
+`role="dialog" aria-modal="true"`, full-viewport (`fixed inset-0 z-[60]`). Header row: `Logo` + "Cerrar" button. Nav list: the same five `NAV` entries as the header (`Home #home`, `About #about`, `Classes #classes`, `Instructors #instructors`, `Community #community`), each rendered `font-normalidad text-[min(4.5rem,5.8cqi)] uppercase` with its zero-padded index. Footer row: studio address ("Carrer de la Gravetat 14 · Barcelona"), `mailto:hola@progravity.studio`, and the same social icon row as the header.
+
+### [SECTION-03] hero
+Uses: EFFECT-01, EFFECT-02, EFFECT-03, EFFECT-07, EFFECT-08, EFFECT-09
+Backdrop: BACKGROUNDS.hero + BACKGROUNDS.heroMobile
+Content: CONTENT.HERO
+
+Every number below is a design-pixel coordinate on the 1440x810 (desktop) or 440x956 (mobile) artboard, passed through the EFFECT-01 helpers exactly as written. Do NOT round them, do NOT re-derive the layout from the description, and do NOT substitute flow layout (`flex`/`grid`) for the absolute positioning -- the headline only reads as "PRO / GRAVITY" because these specific offsets interleave the type with the dancer.
+
+**Render exactly the strings quoted here and no others.** Do not add taglines, kickers, sub-labels or descriptor lines to the stat cards or anywhere else in the hero -- the two stat cards carry a number and a single label each, nothing more.
+
+#### Desktop (`components/hero/HeroDesktop.tsx`, `hidden md:block`)
+
+DOM order below **is** the stacking order -- nothing carries a `z-index` except the backdrop's `-z-10`, so paint order is purely source order. The frontal dancer clip must come *after* the type, or the head renders behind the headline.
+
+**Every bitmap named in the tables below is a `MEDIA` key, not a literal path** (SETUP-CONTENT): `swirl-left.svg` = `MEDIA.haloLeft`, `swirl-right.svg` = `MEDIA.haloRight`, `swirl-center.svg` = `MEDIA.haloCenter`, `swirl-mobile.svg` = `MEDIA.haloMobile`, `ground-1.svg` = `MEDIA.ground1`, `ground-2.svg` = `MEDIA.ground2`, `dancer.webp` = `MEDIA.dancer`, `dancer-top.webp` = `MEDIA.dancerTop`, `flower.svg` = `MEDIA.flower`, `badge.webp` = `MEDIA.badge`, and `avatar-01` … `avatar-14` = `MEDIA.avatars[0]` … `MEDIA.avatars[13]` in that order. The file names are kept in the tables only because they keep the columns readable -- **no component may contain a literal path**.
+
+**Every string quoted in the tables below is a `HERO` key, not a literal** (SETUP-CONTENT): `"Pr"` = `HERO.brandParts.pr`, `"Gravi"` = `HERO.brandParts.gravi`, `"ty"` = `HERO.brandParts.ty`, the two tagline lines = `HERO.tagline[0]` and `HERO.tagline[1]` (two fragments each), the paragraph = `HERO.body`, the two buttons = `HERO.buttons`, the two stat cards = `HERO.stats`, and the `sr-only` headline = `HERO.srTitle`. `HeroDesktop` and `HeroMobile` both read the same keys -- a string written twice is a bug.
+
+The coordinates themselves never move into `content.ts`. **Coordinates are design; strings and URLs are content.** That split is what keeps this hero pixel-faithful and still editable.
+
+Layer 1 -- backdrop, outside the frame, full-bleed on the section root. It is **not written inline**: it is the two-layer recipe declared in `BACKGROUNDS.hero` (SETUP-CONTENT), rendered by the one component that owns every background in this build (SETUP-BACKDROP):
+
+```tsx
+<SectionBackdrop layers={BACKGROUNDS.hero} className="-z-10" />
+```
+
+`HeroMobile` does the same with `BACKGROUNDS.heroMobile`. Do NOT put the two `<img>` tags back into the hero: the buyer swaps this background by editing one line, and an inline layer would survive the swap and keep painting underneath.
+
+`fit: "fill"` on the sky layer is deliberate -- the source bitmap is a gradient and Figma stretches it into horizontal bands. The texture is an overscanned full-bleed wash (`bleed: "8%"`, `opacity: 0.2`, `blend: "color-dodge"`); it is never a standalone visible image. The `parallax: 70` on both layers is the scroll drift that used to be a `skyY` transform on the wrapper.
+
+Layers 2-12 all live inside the `.frame.frame-desktop` stage (EFFECT-01), each absolutely positioned:
+
+```
+2. HALOS   wrapper: absolute inset-0, variants={passthrough}, style={{ y: haloY, x: haloPX }}
+           inner:   absolute inset-0, hidden{opacity:0} → show{opacity:1, duration:1.6, ease:EASE}
+   Halo({ src, cx, top, w, h, bleedX, bleedY }) renders:
+     <div className="pointer-events-none absolute -translate-x-1/2"
+          style={{ left: cx, top: dw(top), width: dw(w), height: dw(h) }}>
+       <div className="absolute" style={{ inset: `${bleedY} ${bleedX}` }}>
+         <img src={src} alt="" className="block h-full w-full" />
+   swirl-left.svg    cx=dpx(15.63,-1.78)  top=306.27   w=1061.566  h=717.457  bleed=-55.75% / -37.68%
+   swirl-right.svg   cx=dpx(90.63,-2.75)  top=336.297  w=1061.566  h=717.457  bleed=-55.75% / -37.68%
+   swirl-center.svg  cx=dpx(50)           top=475.0    w=1418.931  h=649.203  bleed=-61.61% / -28.19%
+
+3. GROUND  wrapper: absolute inset-0, aria-hidden, hidden{opacity:0} → show{opacity:1, duration:1.2, delay:0.5}
+   ground-1.svg  left=dpx(16.67,-1)     top=dw(743.03)   w=dw(754)      h=dw(42)  inner inset "-116.43% -6.49%"
+   ground-2.svg  left=dpx(31.25,20.85)  top=dw(767.005)  w=dw(270.004)  h=dw(8)   inner inset "-50% -1.48%"
+
+4. "Gravi"  wrapper: absolute inset-0, variants={passthrough}, style={{ y: typeY, x: typePX, opacity: typeFade }}
+   (this wrapper also holds <h1 className="sr-only">ProGravity — Defy gravity, own the dance.</h1>)
+   span.font-normalidad  left=dpx(6.25,8)  top=capTop(357.005,161.85)
+                         fontSize=dw(161.85)  lineHeight=1.2  letterSpacing=dw(-6.474)
+   hidden { opacity:0, y:40, filter:`blur(${dw(40*FIGMA_BLUR)})` }
+   show   { opacity:1, y:0,  filter:`blur(${dw(24.8*FIGMA_BLUR)})`, duration:1.5, ease:EASE }
+
+5. DANCER  wrapper: absolute inset-0, variants={passthrough}, style={{ y: dancerY, x: dancerPX }}
+   inner:  absolute -translate-x-1/2 -translate-y-1/2
+           left="50%"  top=dpy(51.04,1.15)  width=dw(542.37)  height=dw(715.18)
+           hidden{opacity:0,y:60,scale:1.06} → show{opacity:1,y:0,scale:1, duration:1.5}
+   img dancer.webp  className="h-full w-full object-contain object-bottom"
+                    variants={passthrough}  style={{ y: dancerPY }}
+                    alt="Bailarín de ProGravity suspendido en el aire"
+
+6. "ty" + BAR  wrapper: absolute inset-0, passthrough, style={{ y: typeY, x: typePX, opacity: typeFade }}
+   span "ty"  left=dpx(62.5,11.9)  top=capTop(357.005,161.85)  fontSize=dw(161.85)
+              letterSpacing=dw(-6.474)  hidden{opacity:0,y:40} → show{duration:1.3, delay:0.1}
+   span bar   left=dpx(47.92,4)  top=dw(357.395)  width=dw(269.118)  height=dw(21.682)
+              className="absolute bg-white"  transformOrigin="right center"
+              hidden{opacity:0,scaleX:0} → show{opacity:1,scaleX:1, duration:1.1, delay:0.35}
+
+7. "Pr" + PILL  wrapper: absolute inset-0, passthrough, style={{ y: typeY, x: typePX, opacity: typeFade }}
+   span "Pr"  left=dpx(2.08,0.79)  top=capTop(226.118,161.85)  fontSize=dw(161.85)
+              letterSpacing=dw(-6.474)  hidden{opacity:0,y:40} → show{duration:1.3}
+   span pill  className="absolute border-solid border-white"
+              left=dpx(25,1.4)  top=dw(224.248)  width=dw(548.604)  height=dw(115.93)
+              borderWidth=dw(21)  borderRadius=dw(55)  transformOrigin="left center"
+              hidden{opacity:0,scaleX:0.72} → show{opacity:1,scaleX:1, duration:1.4, delay:0.2}
+   shadow bar A (EFFECT-09)  left=dpx(37.5,4)    top=dw(208.15)  w=dw(358)      h=dw(67)
+                             background: var(--color-sky)    maskPosition dw(-182.604) dw(16.125)
+   shadow bar B (EFFECT-09)  left=dpx(39.58,19.08) top=dw(208.15) w=dw(230.924) h=dw(67)
+                             background: var(--color-slate)  maskPosition dw(-227.679) dw(16.125)
+
+8. TAGLINE  className="absolute flex items-center"
+   left=dpx(66.67,-5)  top=dpy(29.17,11.9)  gap=dw(24)  fontSize=dw(24)
+   hidden{opacity:0,y:20} → show{opacity:1,y:0, duration:0.9}
+   <p className="whitespace-nowrap font-semibold uppercase leading-[1.4] text-white">Defy<br/>Gravity.</p>
+   <span style={{ width: dw(17.901), height: dw(46.822) }}>   ← centring box for the hairline
+     <span className="block bg-white" style={{ width: dw(50.127), height: "1px",
+                                               transform: "rotate(-69.08deg)" }} />
+   <p className="whitespace-nowrap font-semibold uppercase leading-[1.4] text-white">Own the<br/>Dance.</p>
+
+9. PARAGRAPH  className="absolute text-white"
+   left=dpx(6.25,23.81)  top=dpy(64.58,1.88)  width=dw(342.188)  fontSize=dw(16)  lineHeight=1.4
+   hidden{opacity:0,y:22} → show{duration:0.9}
+   text: "ProGravity is a next-level dance experience that blends strength, rhythm, and
+          aerial-inspired movement into one seamless flow."
+
+10. BUTTONS  className="absolute flex items-center"
+    left=dpx(6.25,20)  top=dpy(77.08,1.63)  hidden{opacity:0,y:22} → show{duration:0.9}
+    <CTA href="#membership">Join the Movement</CTA>
+    <CTA href="#classes" variant="ghost">Our Classes</CTA>
+
+11. DANCER FRONTAL CLIP  identical box + variants to layer 5, plus:
+    className="pointer-events-none absolute inset-0"  aria-hidden  alt=""
+    inner style adds  clipPath: "inset(0 0 62% 0)"
+    Same bitmap, same coordinates, clipped to its top 38% so the head paints over the headline.
+
+12. STAT CARDS  wrapper: absolute inset-0, passthrough, style={{ y: cardsY }} → <StatCards />
+```
+
+`capTop = (y, size) => dw(y - 0.25 * size)` and `FIGMA_BLUR = 0.5`, both defined at the top of the file (see DETAILS for why each exists).
+
+#### `components/hero/StatCards.tsx`
+
+`const CARD_TOP = dpy(68.75, -5.88)`. Shared entrance helper:
+
+```ts
+const enter = (delay: number) => ({
+  hidden: reduce ? { opacity: 0 } : { opacity: 0, y: 28, scale: 0.97 },
+  show: { opacity: 1, y: 0, scale: 1,
+          transition: { duration: reduce ? 0.2 : 1, delay, ease: EASE } },
+});
+```
+
+Root is `<div ref={ref} className="absolute inset-0">` with `useInView(ref, { once: true, margin: "-10%" })` driving both counters (EFFECT-08). Three children:
+
+```
+CARD 1 "Classes Monthly"   enter(0.15)
+  className="glass group absolute overflow-hidden transition-[background-color] duration-500 hover:bg-white/25"
+  left=dpx(56.25,4)  top=CARD_TOP  width=dw(290)  height=dw(125)  borderRadius=dw(20)
+  img flower.svg   left=dw(8.43) top=dw(5.78) width=height=dw(113.444)
+                   className="absolute transition-transform duration-[1400ms]
+                              ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:rotate-45"
+  p number  left=dw(128.79)  top=capTop(37.32,40)  fontSize=dw(40)  lineHeight=1.2
+            letterSpacing=dw(-1.6)  className="font-normalidad absolute whitespace-nowrap
+            uppercase text-white"   content: {useCountUp(150,…)}+
+  p label   left=dw(134.72)  top=capTop(76.32,16)  fontSize=dw(16)  lineHeight=1.4
+            className="absolute whitespace-nowrap text-white opacity-60"   content: "Classes Monthly"
+
+BADGE  enter(0.3)   aria-hidden, className="absolute flex items-center justify-center"
+  left=dpx(56.25,8.66)  top=dpy(68.75,-1.38)  width=height=dw(127.923)
+  motion.img badge.webp  width=height=dw(93.646)
+    animate={{ rotate: [-30, -22, -30] }}  transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+    (under reduce: animate={{ rotate: -30 }})
+
+CARD 2 "Active Members"   enter(0.25)   same className/size as CARD 1
+  left=dpx(77.08,2)  top=CARD_TOP  width=dw(290)  height=dw(125)  borderRadius=dw(20)
+  14 avatars, each: width=height=dw(29.337), left=dw(x), top=dw(y), transitionDelay=`${i*22}ms`
+    className="absolute rounded-full object-cover transition-transform duration-700
+               ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-110"
+    avatar-01 (-1.33, 32.65)   avatar-02 (210, 111.15)    avatar-03 (266.51, 100.15)
+    avatar-04 (263.34, 24.49)  avatar-05 (228.55, -14.84) avatar-06 (24.67, -6.68)
+    avatar-07 (165.44, -14.84) avatar-08 (-9.21, 100.15)  avatar-09 (97.39, -4.84)
+    avatar-10 (42.01, 57.15)   avatar-11 (229.55, 50.65)  avatar-12 (32.01, 105.99)
+    avatar-13 (81.88, 105.99)  avatar-14 (153.49, 91.32)
+  p number  left=dw(80)     top=capTop(37.32,40)  fontSize=dw(40)  content: {useCountUp(10,…)}K+
+  p label   left=dw(85.93)  top=capTop(76.32,16)  fontSize=dw(16)  content: "Active Members"
+```
+
+Several avatar coordinates are negative or exceed the card's 290x125 box on purpose -- the card is `overflow-hidden`, so those portraits are clipped by its rounded edge and read as a pile spilling out from under it. Clamping them into the box destroys the effect.
+
+#### Mobile (`components/hero/HeroMobile.tsx`, `md:hidden`, inside `.frame.frame-mobile`)
+
+Same language re-laid-out on the 440x956 artboard via `mw()`/`mpx()`/`mpy()`; `capTop` here is `(y, size) => mw(y - 0.25 * size)`. Backdrop is the same two images but `object-cover object-bottom` at `h-full` for the sky and `-inset-[10%] h-[120%] w-[120%]` for the texture. Shared entrance helper `rise(delay = 0, y = 22)` → `hidden{opacity:0,y}` → `show{opacity:1,y:0, duration:0.95, delay, ease:EASE}`. Stage stagger is `stagger(reduce, 0.07, 0.15)`. **No pointer parallax and no scroll parallax on mobile** -- only this entrance.
+
+```
+HALOS (4, one more than desktop)  hidden{opacity:0} → show{opacity:1, duration:1.5}
+  swirl-left.svg    cx=mw(-319.52)        top=306.27  w=1061.566  h=717.457  bleed=-55.75% / -37.68%
+  swirl-right.svg   cx=mpx(100,319.52)    top=336.27  w=1061.566  h=717.457  bleed=-55.75% / -37.68%
+  swirl-center.svg  cx=mpx(37.5,12.26)    top=475     w=1418.931  h=649.203  bleed=-61.61% / -28.19%
+  swirl-mobile.svg  cx=mpx(50)            top=759.62  w=972.67    h=364.582  bleed=-109.71% / -41.12%
+
+GROUND  hidden{opacity:0} → show{opacity:1, duration:1.1, delay:0.5}
+  ground-1.svg  left=mw(-139.86)  top=mw(917.12)  w=mw(590.357)  h=mw(32.885)  inset "-116.43% -6.49%"
+  ground-2.svg  left=mw(41.68)    top=mw(935.91)  w=mw(211.404)  h=mw(6.264)   inset "-50% -1.48%"
+
+HEADLINE  two separate spans (NOT SplitText — see EFFECT-04's scope), both font-normalidad,
+  fontSize=mw(64.187)  lineHeight=1.2  letterSpacing=mw(-2.5675)
+  hidden{opacity:0, y:26, filter:`blur(${mw(28*FIGMA_BLUR)})`}
+  show  {opacity:1, y:0,  filter:`blur(${mw(14*FIGMA_BLUR)})`, duration:1.3, ease:EASE}
+  "Pr"      left=mw(20)  top=capTop(139.4,64.187)   (no delay)
+  "Gravity" left=mw(20)  top=capTop(191.1,64.187)   delay:0.08
+  pill span  left=mpx(25,41.23)  top=mw(139.44)  width=mw(167.226)  height=mw(44.136)
+             borderWidth=mw(7.995)  borderRadius=mw(20.939)  transformOrigin="left center"
+             hidden{opacity:0,scaleX:0.7} → show{opacity:1,scaleX:1, duration:1.2, delay:0.2}
+             (no masked inner shadow on mobile — EFFECT-09 is desktop-only)
+
+TAGLINE  rise(0.15)  left=mw(20) top=mw(272.27) width=mw(142.786) height=mw(28.465)
+  gap=mw(9.91)  fontSize=mw(12.867)  leading-[1.2]
+  hairline box mw(8.231) x mw(28.465); inner bar width=mw(29.631) height=1px rotate(-73.87deg)
+
+PARAGRAPH  rise(0.2)  left=mpx(50,8.74) top=mw(272.27) width=mw(187.846) fontSize=mw(14) lineHeight=1.4
+
+DANCER  absolute -translate-x-1/2 -translate-y-1/2 (single copy, no frontal clip on mobile)
+  left=mpx(62.5,-38.25)  top=mpy(50,181.98)  width=mw(424.657)  height=mw(559.963)
+  hidden{opacity:0,y:46,scale:1.05} → show{opacity:1,y:0,scale:1, duration:1.4}
+
+CARD "Classes Monthly"  rise(0.28, 26)  className="glass absolute"
+  left=mw(20)  top=mw(545.11)  width=mw(194)  height=mw(125)  borderRadius=mw(20)
+  p number  left=mw(22.97)  top=capTop(23.12,40)  fontSize=mw(40)  letterSpacing=mw(-1.6)
+  p label   left=mw(28.9)   top=capTop(62.12,16)  fontSize=mw(16)   "Classes Monthly"
+  arrow chip  right=mw(5) bottom=mw(5) size=mw(26.934) borderWidth=mw(0.709) rounded-full
+              border-white/29, holds ArrowElbowIcon at mw(14.176)
+
+CARD "Active Members"  rise(0.36, 26)  className="glass absolute"
+  left=mpx(50,9)  top=mw(618)  width=mw(187)  height=mw(125)  borderRadius=mw(20)
+  avatar row  left=mw(22.71) top=mw(19.18), flex items-center; each img size=mw(18.865)
+              rounded-full object-cover  marginRight=mw(-2.572)  (overlapping row, not a pile)
+              avatar-01 @1 · avatar-10 @1 · avatar-13 @0.7 · avatar-14 @0.5 · avatar-11 @0.4 · avatar-12 @0.2
+  p number  left=mw(22.71)  top=capTop(55,40)  fontSize=mw(40)  letterSpacing=mw(-1.6)
+  p label   left=mw(28.63)  top=capTop(94,16)  fontSize=mw(16)   "Active Members"
+
+CTA  motion.a href="#membership"  rise(0.44, 26)  — a plain anchor, NOT the <CTA>/<Magnetic> component
+  className="group absolute flex -translate-x-1/2 items-center justify-between overflow-hidden bg-white"
+  left="50%"  top=mw(810)  width=mw(400)  borderRadius="9999px"
+  paddingLeft=mw(32) paddingRight=mw(20) paddingTop=paddingBottom=mw(20)
+  label "Join the Movement"  fontSize=mw(24)  font-bold text-deep
+  icon chip  size=mw(51.57)  rounded-full bg-deep text-white  group-active:scale-90
+             holds ArrowElbowIcon at mw(27.142)
+```
+
+### [SECTION-04] scroll-progress
+Uses: EFFECT-17
+Backdrop: none
+Content: none
+
+A single `fixed inset-x-0 top-0 z-[70] h-[2px]` element, rendered once at the top of `page.tsx` before the header.
+
+### [SECTION-05] ticker
+Uses: EFFECT-18
+Backdrop: none
+Content: CONTENT.MARQUEE
+
+Between the hero and the body gradient. `border-y border-white/15 py-6 md:py-8`, two stacked `Marquee` rows as described in EFFECT-18.
+
+### [SECTION-06] manifesto
+`id="about"`. Uses: EFFECT-02, EFFECT-04, EFFECT-06, EFFECT-08, EFFECT-19
+Backdrop: none
+Content: CONTENT.MANIFESTO
+
+Two-column (`lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]`). Left: `SectionHead` (kicker "The Method", title "Movement without a ceiling", lead "Cada sesión se construye sobre tres capas: fuerza que sostiene, ritmo que ordena y suspensión que libera. Aprendes a caer bien antes de aprender a volar."); an `<ol>` of three numbered pillars ("01 Ground" / "Base de fuerza y control postural. Sin suelo firme no hay vuelo limpio.", "02 Flow" / "Transiciones continuas: el peso se transfiere sin cortes ni pausas visibles.", "03 Air" / "Trabajo aéreo asistido, saltos y suspensiones con retorno controlado.") each `border-t border-white/12` and brightening on hover; a three-column row of `useCountUp` figures (`12` "Años de método", `3` "Salas en la ciudad", `40+` "Profesores certificados"). Right: two `MediaFrame`s offset against each other via independent `Parallax` wrappers (`distance={40}` and `distance={-70}`, a plain scroll-linked spring `y` on a wrapping div, `[80,-80]px` travel range) -- `dancer-top.webp` (`3/4`, caption "Suspensión asistida · Sala A") and, overlapping bottom-left at `-bottom-12 -left-4 w-[52%]`, `atmo-04.jpg` (`1/1`, caption "Night Session", its own orange-toned `tint`) -- plus a `flower.svg` spinning continuously beside them (EFFECT-19).
+
+### [SECTION-07] classes
+`id="classes"`. Uses: EFFECT-02, EFFECT-04, EFFECT-06, EFFECT-07, EFFECT-12, EFFECT-19
+Backdrop: none
+Content: CONTENT.CLASSES + CONTENT.LEVELS
+
+`SectionHead` (kicker "Timetable", title "Elige tu nivel", lead "Seis formatos que se encadenan entre sí. Empieza por donde estés hoy: el método te lleva al siguiente.") beside the level-filter pill row (EFFECT-12). Grid of up to six `ClassCard`s (`sm:grid-cols-2 lg:grid-cols-3`), each a `MediaFrame` (`4/5`, level badge top-left, hover-revealed arrow chip top-right) plus title, duration, a five-dot intensity meter (filled dots `bg-white`, empty `border border-white/40`), and a copy line. The six classes: Gravity Basics (Beginner, 45 min, intensity 2, "Alineación, respiración y las cinco caídas seguras que abren todo el método."), Aerial Flow (Intermediate, 60 min, 4, "Secuencias continuas con suspensión asistida y retorno al suelo sin impacto."), Power Drop (Advanced, 75 min, 5, "Explosividad, saltos altos y descensos controlados. Solo con base sólida."), Rhythm Lab (Beginner, 50 min, 3, "Musicalidad pura: subdivisión, acento y silencio aplicados al cuerpo entero."), Core Suspension (Intermediate, 55 min, 4, "Centro, cadena posterior y agarre. La clase que sostiene todas las demás."), Night Session (Advanced, 90 min, 5, "Improvisación libre en sala abierta con DJ en vivo. Solo por invitación."). Closes with a "Ver horarios completos" ghost `CTA` linking `#membership`.
+
+### [SECTION-08] instructors
+`id="instructors"`. Uses: EFFECT-02, EFFECT-04, EFFECT-05, EFFECT-19
+Backdrop: none
+Content: CONTENT.INSTRUCTORS
+
+`SectionHead` (kicker "The Crew", title "Quién te va a corregir", lead "Cinco personas, un método. Cada una sostiene una capa distinta del programa."). A `border-t` list of five accordion rows -- each shows a number-of-years badge, a `md:hidden`-only round thumbnail, the name (`font-normalidad`, translates right on hover), the role (`md:block`-only), and a rotating `+`/`×` toggle (`PlusIcon`, `rotate-45` + `bg-white text-deep` when open) that expands a height-animated (`AnimatePresence`/`height: 0 → auto`) bio panel with a `md:block`-only portrait. The five: Noa Ferrand / Head of Aerial / 09 years / "Formada en circo contemporáneo y danza aérea. Dirige el programa de suspensión y toda la progresión de retorno al suelo."; Kai Ortega / Rhythm & Musicality / 07 / "Percusionista antes que bailarín. Trabaja la subdivisión rítmica como herramienta de control, no como adorno."; Lina Meško / Strength Base / 11 / "Preparadora física del equipo. Diseña las bases de fuerza que sostienen el trabajo aéreo de todo el estudio."; Dario Vance / Power & Impact / 06 / "Especialista en impacto y explosividad. Su clase Power Drop es la más exigente del calendario."; Sena Aydın / Flow Architecture / 08 / "Coreógrafa. Construye las secuencias largas que unen las tres capas del método en un solo recorrido." The floating cursor-follow portrait (EFFECT-05) mirrors whichever row is hovered/open.
+
+### [SECTION-09] gallery
+Uses: EFFECT-02, EFFECT-04, EFFECT-06, EFFECT-14, EFFECT-19
+Backdrop: none
+Content: CONTENT.GALLERY
+
+`SectionHead` (kicker "Inside the studio", title "Cómo se ve por dentro", lead "Sesiones reales, sin puesta en escena. Pulsa cualquier imagen para verla en grande.", `align="center"`). Eight-item masonry (EFFECT-14): Warm-up · Studio A (tall), Suspension drill (wide), Rhythm Lab (normal), Open floor (tall), Night Session (normal), Drop practice (wide), Cool down (normal), Studio B (normal) -- each a button opening the shared `Lightbox`.
+
+### [SECTION-10] community
+`id="community"`. Uses: EFFECT-02, EFFECT-04, EFFECT-13, EFFECT-19
+Backdrop: none
+Content: CONTENT.TESTIMONIALS
+
+`SectionHead` (kicker "Community", title "Lo cuentan ellos", lead "Cuatro voces de las diez mil personas que entrenan con el método."). Carousel (EFFECT-13) over four testimonials: Mireia Solà (Miembro desde 2023) -- "Llegué sin poder sostener mi propio peso treinta segundos. Ocho meses después cerré mi primera secuencia aérea completa."; Tomás Iriarte (2022) -- "No es una clase de fitness disfrazada de danza. Es técnica real, corregida de cerca, con una progresión que se nota cada semana."; Yuki Hara (2024) -- "La comunidad es la mitad del método. Nadie compite contigo; todo el mundo te sostiene el peso cuando hace falta."; Adaeze Nwosu (2021) -- "El trabajo de suelo cambió mi forma de caminar. Suena exagerado hasta que te pasa."
+
+### [SECTION-11] membership
+`id="membership"`. Uses: EFFECT-02, EFFECT-04, EFFECT-07, EFFECT-15, EFFECT-19
+Backdrop: none
+Content: CONTENT.PLANS
+
+`SectionHead` (kicker "Membership", title "Entra al movimiento", lead "Sin permanencia. Cambias o cancelas tu plan desde la app cuando quieras.", `align="center"`), the monthly/yearly switch (EFFECT-15, "−2 meses" badge beside it), then three plan cards: Drop-in (€29/mo, €290/yr, "Para probar el método sin compromiso.", 4 clases al mes · Acceso a Gravity Basics · App de seguimiento), Flow -- `featured`, white surface + "Más elegido" badge (€69/mo, €690/yr, "El plan de quien ya entrena en serio.", Clases ilimitadas · Todas las disciplinas · Sala abierta 7 días · 2 invitados al mes), Air (€119/mo, €1190/yr, "Acompañamiento uno a uno y trabajo aéreo avanzado.", Todo lo del plan Flow · 2 sesiones privadas al mes · Night Session incluida · Plan de fuerza personalizado). Each perk row uses `CheckIcon`; each card closes with a compact `CTA` ("Elegir {plan}", `dark` variant on the featured card, `ghost` on the others) linking `#join`.
+
+### [SECTION-12] join
+`id="join"`. Uses: EFFECT-02, EFFECT-04, EFFECT-07, EFFECT-16, EFFECT-19
+Backdrop: none
+Content: CONTENT.JOIN
+
+A parallax-drifted `dancer.webp` silhouette bleeds off the right edge (`opacity-25`, `md:block`-only). "Primera clase gratis" pill, two stacked `SplitText` headlines ("Defy gravity." full white, "Own the dance." at `text-white/45`), then the form (EFFECT-16): email input + "Reservar mi clase" submit button (label swaps to "Enviando…" while `sending`, `disabled`), inline validation copy "Escribe un correo válido, por ejemplo nombre@dominio.com.", and the `done` confirmation "Hecho. Te hemos reservado una plaza de prueba y te escribimos a {email} con los horarios de esta semana."
+
+### [SECTION-13] site-footer
+Uses: EFFECT-02, EFFECT-19
+Backdrop: none
+Content: CONTENT.FOOTER_LINKS + CONTENT.SOCIALS
+
+`Logo` + one-line description + social row; a three-column link grid (Studio: About/Classes/Instructors/Community; Visit: Book a trial/Schedule/Memberships/Gift cards -- Book a trial and Schedule are the only two wired to real in-page anchors, `#join` and `#classes`; Legal: Terms/Privacy/Cookies/Accessibility, unwired placeholders) revealed via the shared `Reveal`/`Rise` stagger. A giant, low-opacity (`text-white/12`) `font-normalidad` "Progravity" wordmark spans the full width behind everything, sized `min(10.6vw, 13rem)`. Bottom bar: copyright line + "Diseño replicado del archivo de Figma «Daily Hero 13 · Arkkhe» — nodos 6001:119 y 6001:208." The scroll-to-top button (EFFECT-19) is rendered here too.
+
+## DETAILS
+
+- **Palette**: `--color-sky #99badf` (page background, hero base), `--color-deep #025b86` (button text-on-white, header glass tint source, footer badge), `--color-slate #465b76` (second pill inner-shadow bar), `--color-cyan #026692` and `--color-haze #ddf6ff` (declared theme tokens, held for the halo/glow family), `--color-ink #06283d` (dark text on the featured membership card). Body copy runs from full white down to `white/40` in five or six opacity steps rather than switching hex values. The mid-page body background is one long `linear-gradient(180deg, #b9d8e6 0px, #4a9cc2 180px, #02597f 520px, #06283d 1500px, #03192a 100%)` in absolute pixel stops (not percentages) so the pale hero-exit blue and the near-black footer land at fixed scroll depths regardless of how much content sits between them.
+- **Typography**: one display face (Anybody, variable-width axis pinned to `wdth 150` via `.font-normalidad`/`.font-normalidad-black`) for every headline, number and the wordmark; Figtree for everything else. Cap-height offsets in the hero (`capTop = (y, size) => dw(y - 0.25 * size)`) exist because Figma measures `top` from a glyph's cap height while the CSS line box measures from its own metrics -- skip that `0.25 * fontSize` correction and every hero string sits visibly low.
+- **One easing curve**, `[0.22, 1, 0.36, 1]` (`EASE` in `lib/motion.ts`, `--ease-brand` in CSS), used everywhere Framer or a CSS transition eases a value -- no second curve appears anywhere in the build.
+- **Layer blur conversion**: Figma's "Layer blur" is a radius; CSS `filter: blur()` wants the Gaussian's standard deviation, roughly half the radius. Every blurred hero element multiplies the Figma radius by `FIGMA_BLUR = 0.5` before feeding it to `dw()` -- skip the halving and the headline and the pill shadow both over-blur into mush.
+- **Responsive contract**: `HeroDesktop`/`HeroMobile` are both always mounted and CSS-toggled at the `md` breakpoint (EFFECT-01) -- everything below the hero is a single responsive tree (no duplicate desktop/mobile branches), reflowing via ordinary Tailwind breakpoints (`sm:`, `md:`, `lg:`) rather than a second coordinate system.
+
+## EDICION
+
+The person who receives this site is not a developer and will edit it by asking an AI assistant,
+in Spanish. Building the site is not the last step. Do all four of the following before you report
+back.
+
+**1. Self-check your own output.** Run these five greps against what you just wrote. Every one must
+come back empty. If one does not, you left content scattered — fix it before continuing, because
+the buyer cannot.
+
+```bash
+grep -rnE '^\s*<video' src/ --include='*.tsx' | grep -v SectionBackdrop   # backgrounds live in SectionBackdrop
+grep -rn 'mix-blend\|bg-gradient-to' src/components/sections src/components/hero --include='*.tsx'
+grep -rn '#[0-9a-fA-F]\{6\}' src --include='*.tsx'                        # except metadata themeColor + comments
+grep -rn 'src="http\|asset("/' src/components/ --include='*.tsx'          # every URL goes through MEDIA
+# and for each string value in content.ts:
+grep -rF "<that string>" src/components/                                  # catches copy duplicated across the two hero trees
+```
+
+**2. Write `EDITAR.md` at the project root, in Spanish**, with exactly these sections:
+
+- `# Cómo cambiar este sitio`
+- `## Antes que nada: cómo verlo corriendo` — `npm install` / `npm run dev`, in plain language
+- `## Los dos únicos archivos que tenés que tocar` — a table: `content.ts` for everything, `globals.css` for colours and fonts
+- `## Las 3 cosas que vas a querer cambiar` — background / text / colour, with a concrete example each
+- `## Comandos listos para copiar y pegar` — 10 literal sentences the buyer copies to any AI
+- `## Lo que NO es fácil en este sitio` — see below
+- `## Si algo se rompe` — undo, check commas and quotes, read the terminal, paste the error to the AI
+
+Address the reader as *vos*, never use a technical term without explaining it in the same sentence,
+and assume they have never opened a code editor.
+
+The ten copy-paste commands must be real for this build, e.g.: *"Cambiá el fondo del hero por esta
+imagen: `<dirección>`"*, *"Cambiá el color de acento del sitio a `<color>`"*, *"Sacá la sección de
+`<nombre>`"*, *"Poné la sección de `<nombre>` antes de la de `<otra>`"*. Close that section with the
+sentence the buyer can paste when the AI asks where something lives: **"Todo el contenido está en
+`src/lib/content.ts`. Los colores y las tipografías, en `src/app/globals.css`. Las secciones, en
+`src/sections.ts`. No edites los componentes para cambiar contenido."**
+
+**3. The "Lo que NO es fácil" section is mandatory and specific to this build.** Three things here
+cannot be changed by asking for them in one sentence, and a manual that pretends otherwise gets the
+buyer stuck. For each one: what it is, why it is built that way, a rescue command that *does* work,
+and what it costs — stated plainly, not buried.
+
+- **The hero headline.** "PRO / GRAVITY" is not a string: it is five hand-placed fragments
+  (`Pr`, the masked pill `O`, a blurred `Gravi`, a white bar, a sharp `ty`) interleaved with the
+  dancer bitmap, each on artboard coordinates. Rescue command: *"Reemplazá el título partido del
+  hero por un solo título centrado que lea `HERO.brand`, y borrá el anillo, la barra blanca y el
+  recorte frontal de la bailarina."* Cost: the ring and the dancer-in-front effect are gone; the
+  rest of the site is untouched.
+- **`--color-sky` does two jobs.** It is the hero background *and* the colour of the blurred shadow
+  inside the "O" pill (EFFECT-09). Changing it moves both. Rescue command: *"Cambiá `--color-sky`
+  solo como fondo del hero. Creá un token nuevo para la sombra interior del anillo de la 'O' y
+  dejale el valor celeste que tenía."*
+- **The hero is positioned by artboard coordinates.** *What* is shown can be swapped freely
+  (bitmaps, strings); *where* it sits cannot be moved without recomputing the coordinates.
+
+**4. Write `AGENTS.md` at the project root, in English**, holding the four hard rules from
+SETUP-CONTENT plus the three wiring rules from SETUP-BACKDROP, so the next AI that opens this
+project reads the contract on its own. End it with the line: `Copy this file to CLAUDE.md as well.`
+
+**Finally, reply to the user with the list of phrases they can use to edit this site** — the same
+ten from `EDITAR.md`, in Spanish, in your chat answer. They just pasted a prompt and got a website;
+they should not have to open a file to find out how to change it.

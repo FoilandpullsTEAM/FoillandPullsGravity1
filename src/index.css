@@ -1,0 +1,175 @@
+@import "tailwindcss";
+
+@theme {
+  --color-sky: #99badf;
+  --color-deep: #025b86;
+  --color-slate: #465b76;
+  --color-cyan: #026692;
+  --color-haze: #ddf6ff;
+  --color-ink: #06283d;
+  --color-sky-fade: #b9d8e6;
+  --color-cyan-mid: #4a9cc2;
+  --color-deep-mid: #02597f;
+  --color-abyss: #03192a;
+  --color-overlay: #02324a;
+  --color-lightbox: #02202f;
+
+  --font-display: "Anybody", "Helvetica Neue", Arial, sans-serif;
+  --font-sans: "Figtree", "Helvetica Neue", Arial, sans-serif;
+
+  --ease-brand: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.frame {
+  container-type: size;
+  container-name: frame;
+}
+
+.frame-desktop {
+  width: min(100%, calc(100svh * 16 / 9));
+  aspect-ratio: 16 / 9;
+  margin-inline: auto;
+}
+
+.frame-mobile {
+  width: min(100%, calc(100svh * 440 / 956));
+  aspect-ratio: 440 / 956;
+  margin-inline: auto;
+}
+
+.font-normalidad {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-stretch: 150%;
+  font-variation-settings: "wdth" 150;
+}
+
+.font-normalidad-black {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 150%;
+  font-variation-settings: "wdth" 150;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 88px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-sky);
+  color: #fff;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+::selection {
+  background: #fff;
+  color: var(--color-deep);
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.19);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.hairline {
+  border: 1px solid rgba(255, 255, 255, 0.29);
+}
+
+.dancer-silhouette {
+  mix-blend-mode: screen;
+}
+
+.pokemon-card-holo {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 45%, rgba(255, 215, 0, 0.25) 100%);
+  mix-blend-mode: overlay;
+}
+
+.pokemon-card-shadow {
+  box-shadow: 0 16px 36px -8px rgba(2, 91, 134, 0.5), 0 0 25px 2px rgba(255, 255, 255, 0.35);
+}
+
+.pokemon-card-shadow:hover {
+  box-shadow: 0 22px 48px -6px rgba(2, 91, 134, 0.7), 0 0 35px 6px rgba(255, 220, 100, 0.55);
+}
+
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  pointer-events: none;
+  opacity: 0.16;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: grain 1.2s steps(4) infinite;
+}
+
+@keyframes grain {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-3%, 2%); }
+  50% { transform: translate(2%, -3%); }
+  75% { transform: translate(-2%, -2%); }
+}
+
+@keyframes marquee {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee var(--marquee-duration, 40s) linear infinite;
+}
+
+.marquee-track[data-direction="right"] {
+  animation-direction: reverse;
+}
+
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+.menu-row {
+  container-type: inline-size;
+}
+
+.link-underline {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 0% 1px;
+  transition: background-size 0.5s var(--ease-brand);
+}
+
+.link-underline:hover,
+.link-underline:focus-visible {
+  background-size: 100% 1px;
+}
+
+:where(a, button, input, summary, [tabindex]):focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+
+  .marquee-track,
+  .grain::after {
+    animation: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

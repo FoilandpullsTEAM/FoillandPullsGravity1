@@ -1,0 +1,6 @@
+{
+  "name": "ProGravity",
+  "description": "Defy gravity, own the dance. ProGravity is a next-level aerial-dance studio experience.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
