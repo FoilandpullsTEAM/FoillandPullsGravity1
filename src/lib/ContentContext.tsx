@@ -10,7 +10,7 @@ import {
   FOOTER_LINKS,
 } from "@/lib/content";
 
-const STORAGE_KEY = "foillandpulls_site_content";
+const STORAGE_KEY = "foillandpulls_site_content_v2";
 const AUTH_KEY = "foillandpulls_admin_auth";
 
 export type ContentState = {

@@ -83,8 +83,8 @@ export function Classes() {
                   <MediaFrame
                     src={item.image}
                     alt={item.title}
-                    ratio="4 / 5"
-                    parallax={10}
+                    ratio="3 / 4"
+                    parallax={6}
                     className="w-full"
                   >
                     {/* Level Badge Top-Left */}

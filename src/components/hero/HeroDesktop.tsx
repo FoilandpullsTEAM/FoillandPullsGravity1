@@ -447,10 +447,10 @@ export function HeroDesktop() {
             className="absolute text-white"
             style={{
               left: dpx(6.25, 23.81),
-              top: dpy(64.58, 1.88),
-              width: dw(342.188),
-              fontSize: dw(16),
-              lineHeight: 1.4,
+              top: dpy(63.5, 1.88),
+              width: dw(370),
+              fontSize: dw(14.5),
+              lineHeight: 1.5,
             }}
             variants={{
               hidden: { opacity: 0, y: 22 },

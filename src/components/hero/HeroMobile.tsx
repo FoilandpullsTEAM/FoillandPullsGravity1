@@ -289,8 +289,8 @@ export function HeroMobile() {
             style={{
               left: mpx(50, 8.74),
               top: mw(272.27),
-              width: mw(187.846),
-              fontSize: mw(14),
+              width: mw(192),
+              fontSize: mw(12.5),
               lineHeight: 1.4,
             }}
             variants={rise(0.2)}

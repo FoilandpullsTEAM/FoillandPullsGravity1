@@ -107,6 +107,19 @@ export const MEDIA = {
   /** Logo oficial 30th Celebration Pokémon TCG */
   pokemon30Logo: "/pokemon/logo-30th-transparent.png",
   pokemon30LogoRaw: "/assets/aistudio/Logo30an_ospokemon_92d05815.png",
+
+  /** Entrenador con Pikachu épico en la montaña */
+  chicoPikachu: "/assets/aistudio/ChicoconPikachu_27b230c2.jpeg",
+
+  /** Cartas Pokémon individuales destacadas */
+  cards: {
+    lugia: "/assets/aistudio/lugia80HP_64754e1a.png",
+    charizard: "/assets/aistudio/charizard120HP_c1dd0331.png",
+    mewEx: "/assets/aistudio/Mewex160HP_925ea06b.png",
+    mewArt: "/assets/aistudio/mewHP60_a458650c.png",
+    pikachu: "/pokemon/pikachu-30th.jpg",
+    rayquaza: "/pokemon/rayquaza-30th.jpg",
+  },
 } as const;
 
 /* ─────────────── 2. FONDOS DE CADA SECCIÓN ───────────────
@@ -196,7 +209,7 @@ export const HERO = {
     { label: "Join the Movement", href: "#membership", style: "solid" },
     { label: "Our Classes", href: "#classes", style: "ghost" },
   ],
-  body: "foillandpulls is a next-level dance experience that blends strength, rhythm, and aerial-inspired movement into one seamless flow.",
+  body: "Gracias por sumarte. Somos una comunidad de coleccionistas y jugadores de Pokémon TCG de todo el país: desde gente que volvió al hobby después de 20 años hasta jugadores que compiten todos los fines de semana. aqui en FOILANDPULLS encontraras el ecosistema participativo que estuviste buscando.",
   stats: [
     { value: 150, suffix: "+", label: "Classes Monthly" },
     { value: 10, suffix: "K+", label: "Active Members" },
@@ -206,8 +219,22 @@ export const HERO = {
 } as const;
 
 export const MARQUEE = {
-  row1: ["Defy Gravity", "Own the Dance", "Aerial Flow", "Strength × Rhythm", "No Ceiling"],
-  row2: ["No Ceiling", "Strength × Rhythm", "Aerial Flow", "Own the Dance", "Defy Gravity"],
+  row1: [
+    "Foillandpulls Community",
+    "Foillandpulls Community",
+    "Foillandpulls Community",
+    "Foillandpulls Community",
+    "Foillandpulls Community",
+    "Foillandpulls Community",
+  ],
+  row2: [
+    "POKEMON ARGENTINA",
+    "POKEMON ARGENTINA",
+    "POKEMON ARGENTINA",
+    "POKEMON ARGENTINA",
+    "POKEMON ARGENTINA",
+    "POKEMON ARGENTINA",
+  ],
   separator1: "✦",
   separator2: "—",
 } as const;
@@ -255,64 +282,64 @@ export const MANIFESTO = {
 export const LEVELS = ["All", "Beginner", "Intermediate", "Advanced"] as const;
 
 export const CLASSES = {
-  kicker: "Timetable",
+  kicker: "TCG Collection",
   title: "Elige tu nivel",
-  lead: "Seis formatos que se encadenan entre sí. Empieza por donde estés hoy: el método te lleva al siguiente.",
-  cta: "Ver horarios completos",
+  lead: "Seis cartas legendarias organizadas por nivel de juego y categoría coleccionable. Haz clic para ver cada detalle.",
+  cta: "Ver colección completa",
   items: [
     {
-      id: "basics",
-      title: "Gravity Basics",
+      id: "lugia",
+      title: "Lugia",
       level: "Beginner",
-      duration: "45 min",
-      intensity: 2,
-      description: "Alineación, respiración y las cinco caídas seguras que abren todo el método.",
-      image: MEDIA.atmo[0],
-    },
-    {
-      id: "flow",
-      title: "Aerial Flow",
-      level: "Intermediate",
-      duration: "60 min",
-      intensity: 4,
-      description: "Secuencias continuas con suspensión asistida y retorno al suelo sin impacto.",
-      image: MEDIA.atmo[1],
-    },
-    {
-      id: "drop",
-      title: "Power Drop",
-      level: "Advanced",
-      duration: "75 min",
-      intensity: 5,
-      description: "Explosividad, saltos altos y descensos controlados. Solo con base sólida.",
-      image: MEDIA.atmo[2],
-    },
-    {
-      id: "rhythm",
-      title: "Rhythm Lab",
-      level: "Beginner",
-      duration: "50 min",
+      duration: "80 HP",
       intensity: 3,
-      description: "Musicalidad pura: subdivisión, acento y silencio aplicados al cuerpo entero.",
-      image: MEDIA.atmo[3],
+      description: "Lugia Crystal Type edición especial e-Reader con ataques Psychic y Steam Blast.",
+      image: MEDIA.cards.lugia,
     },
     {
-      id: "suspension",
-      title: "Core Suspension",
-      level: "Intermediate",
-      duration: "55 min",
-      intensity: 4,
-      description: "Centro, cadena posterior y agarre. La clase que sostiene todas las demás.",
-      image: MEDIA.atmo[4],
-    },
-    {
-      id: "night",
-      title: "Night Session",
+      id: "charizard",
+      title: "Charizard",
       level: "Advanced",
-      duration: "90 min",
+      duration: "120 HP",
       intensity: 5,
-      description: "Improvisación libre en sala abierta con DJ en vivo. Solo por invitación.",
-      image: MEDIA.atmo[5],
+      description: "El mítico Charizard Stage 2 con habilidad Energy Burn y ataque Fire Spin de 100 de daño.",
+      image: MEDIA.cards.charizard,
+    },
+    {
+      id: "mew-ex",
+      title: "Mew ex",
+      level: "Intermediate",
+      duration: "160 HP",
+      intensity: 4,
+      description: "Mew ex Special Illustration Rare con habilidad Memory Helix y Teleportation Burst.",
+      image: MEDIA.cards.mewEx,
+    },
+    {
+      id: "mew",
+      title: "Mew",
+      level: "Intermediate",
+      duration: "60 HP",
+      intensity: 3,
+      description: "Mew arte gráfico experimental Yoshirotten G/RGB con ataque Psychic amplificado por energías.",
+      image: MEDIA.cards.mewArt,
+    },
+    {
+      id: "pikachu",
+      title: "Pikachu",
+      level: "Beginner",
+      duration: "30th Edition",
+      intensity: 2,
+      description: "Pikachu conmemorativo con sello dorado del 30 Aniversario y aura eléctrica de colección.",
+      image: MEDIA.cards.pikachu,
+    },
+    {
+      id: "rayquaza",
+      title: "Rayquaza",
+      level: "Advanced",
+      duration: "Gold Star",
+      intensity: 5,
+      description: "Rayquaza legendario con acabado holográfico celestial y máxima categoría de rareza.",
+      image: MEDIA.cards.rayquaza,
     },
   ],
 } as const;
@@ -374,7 +401,7 @@ export const GALLERY = {
     { id: "box-1", title: "Poké Ball Deck Box · TCG Classic", shape: "wide" as const, src: MEDIA.deckBoxes[0] },
     { id: "2", title: "Suspension drill", shape: "wide" as const, src: MEDIA.atmo[1] },
     { id: "box-2", title: "Caja Deck Box Pikachu 2026 Coleccionables", shape: "tall" as const, src: MEDIA.deckBoxes[1] },
-    { id: "3", title: "Rhythm Lab", shape: "normal" as const, src: MEDIA.atmo[2] },
+    { id: "3", title: "Rhythm Lab", shape: "normal" as const, src: MEDIA.chicoPikachu },
     { id: "box-3", title: "Deck Box Portamazo con Visor Team Rocket Force", shape: "wide" as const, src: MEDIA.deckBoxes[2] },
     { id: "4", title: "Open floor", shape: "tall" as const, src: MEDIA.atmo[3] },
     { id: "box-4", title: "Deck Box Caja para Mazo · 120 Cartas con Sleeves", shape: "normal" as const, src: MEDIA.deckBoxes[3] },
